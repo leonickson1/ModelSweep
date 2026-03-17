@@ -187,7 +187,7 @@ export default function DashboardPage() {
           </span>
         </div>
         <h1 className="text-5xl md:text-7xl font-sans font-bold tracking-tighter text-white uppercase leading-none mb-4">
-          Model Intelligence
+          ModelSweep
         </h1>
         <p className="text-zinc-500 font-mono text-sm uppercase tracking-widest">
           {models.length} Nodes · {models.length > 0 && `${formatBytes(totalSize)}`}
@@ -200,49 +200,14 @@ export default function DashboardPage() {
         <ErrorState message="Ollama is not running. Start Ollama and ModelPilot will reconnect automatically." />
       )}
 
-      {/* Stats Row Redesign */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[1px] bg-zinc-800/40 border border-zinc-800/40">
-        <div className="bg-[#030303] p-8 flex flex-col justify-between min-h-[220px]">
-          <div className="flex items-center justify-between mb-8">
-            <span className="text-[#00FF66] font-mono text-xs tracking-widest uppercase flex items-center gap-2">
-              Models
-              <InfoTooltip text="Ollama models installed locally and available for evaluation" />
-            </span>
-            <span className="text-zinc-700 font-mono text-2xl">01</span>
-          </div>
-          {modelsLoading ? (
-            <Skeleton className="h-16 w-24 bg-zinc-900" />
-          ) : (
-            <div>
-              <p className="text-5xl md:text-6xl font-sans font-light tracking-tighter text-[#00FF66] mb-2">{models.length}x</p>
-              <h3 className="text-white font-medium mb-1">Total Deployed</h3>
-              {models.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {models.slice(0, 4).map((m) => {
-                    const c = getModelColor(m.name);
-                    return (
-                      <div key={m.name} className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.hex, boxShadow: `0 0 6px ${c.hex}80` }} />
-                        <span className="text-zinc-400 font-mono text-[10px] uppercase tracking-wider truncate">{m.name}</span>
-                      </div>
-                    );
-                  })}
-                  {models.length > 4 && (
-                    <p className="text-zinc-600 font-mono text-[10px] uppercase tracking-wider pl-3.5">+{models.length - 4} more</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-zinc-800/40 border border-zinc-800/40">
         <div className="bg-[#030303] p-8 flex flex-col justify-between min-h-[220px]">
           <div className="flex items-center justify-between mb-8">
             <span className="text-[#00FF66] font-mono text-xs tracking-widest uppercase flex items-center gap-2">
               Runs
               <InfoTooltip text="Total evaluation runs completed across all test suites" />
             </span>
-            <span className="text-zinc-700 font-mono text-2xl">02</span>
           </div>
           {runsLoading ? (
             <Skeleton className="h-16 w-24 bg-zinc-900" />
@@ -261,7 +226,6 @@ export default function DashboardPage() {
               Avg
               <InfoTooltip text="Mean best score across all models that have been evaluated" />
             </span>
-            <span className="text-zinc-700 font-mono text-2xl">03</span>
           </div>
           {runsLoading ? (
             <Skeleton className="h-16 w-24 bg-zinc-900" />
@@ -282,7 +246,6 @@ export default function DashboardPage() {
               Speed
               <InfoTooltip text="Tokens per second of the fastest model measured during evaluation" />
             </span>
-            <span className="text-zinc-700 font-mono text-2xl">04</span>
           </div>
           {runsLoading ? (
             <Skeleton className="h-16 w-24 bg-zinc-900" />

@@ -8,7 +8,6 @@ import {
   BarChart2,
   Cpu,
   Beaker,
-  Users,
   Settings,
   Zap,
 } from "lucide-react";
@@ -24,7 +23,6 @@ const NAV_ITEMS = [
 ];
 
 const BOTTOM_ITEMS = [
-  { href: "/community", icon: Users, label: "Community" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 

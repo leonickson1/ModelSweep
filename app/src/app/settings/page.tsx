@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   Save, RefreshCw, CheckCircle2, AlertTriangle,
-  Link2, Cloud, BarChart2, Users, Info,
+  Link2, Cloud, BarChart2, Info,
   Eye, EyeOff, ChevronDown, ChevronUp, Plus, Loader2,
   Shield,
 } from "lucide-react";
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TabId = "connection" | "cloud" | "scoring" | "community" | "data" | "about";
+type TabId = "connection" | "cloud" | "scoring" | "data" | "about";
 
 type TestStatus = "idle" | "testing" | "success" | "error";
 
@@ -800,49 +800,6 @@ function ScoringTab() {
   );
 }
 
-// ─── Community Tab ────────────────────────────────────────────────────────────
-
-function CommunityTab() {
-  const prefs = usePreferencesStore();
-  const [communityEnabled, setCommunityEnabled] = useState(prefs.communityEnabled);
-  const [saved, setSaved] = useState(false);
-
-  const save = async () => {
-    const updates = { communityEnabled };
-    await fetch("/api/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) });
-    prefs.setPreferences(updates);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <div className="space-y-5">
-      <GlowCard className="p-5" animate={false}>
-        <div className="flex items-center gap-2 mb-1">
-          <h2 className="text-zinc-400 text-sm font-medium">Community Features</h2>
-          <InfoTooltip text="Opt-in sharing of model names and numeric scores to global leaderboards. Prompts and responses are never shared." />
-        </div>
-        <p className="text-zinc-600 text-xs mb-4">
-          Share model names and numeric scores with the global leaderboard.<br />
-          Your prompts and responses are <strong className="text-zinc-400">NEVER</strong> shared.
-        </p>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <div
-            className={cn("relative w-10 h-5 rounded-full transition-colors", communityEnabled ? "bg-blue-500" : "bg-white/10")}
-            onClick={() => setCommunityEnabled((c) => !c)}
-          >
-            <div className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform", communityEnabled ? "translate-x-5" : "translate-x-0.5")} />
-          </div>
-          <span className="text-zinc-400 text-sm">{communityEnabled ? "Community features enabled" : "Community features disabled"}</span>
-        </label>
-      </GlowCard>
-      <Button variant="primary" size="lg" className="w-full" onClick={save}>
-        {saved ? <><CheckCircle2 size={15} />Saved</> : <><Save size={15} />Save</>}
-      </Button>
-    </div>
-  );
-}
-
 // ─── Danger Zone / Data Tab ──────────────────────────────────────────────────
 
 function DangerZoneAction({ title, description, buttonLabel, onConfirm }: {
@@ -962,7 +919,7 @@ function AboutTab() {
       <h2 className="text-zinc-300 text-sm font-medium mb-3">ModelSweep</h2>
       <div className="space-y-2 text-xs text-zinc-500">
         <p>Compare local LLMs side-by-side with automatic scoring and optional LLM-as-judge.</p>
-        <p>All runs are stored locally. No data is sent anywhere unless you enable community sharing.</p>
+        <p>All runs are stored locally. No data is sent to external servers.</p>
         <div className="pt-2 border-t border-white/[0.05]">
           <p>Powered by <span className="text-zinc-400">Ollama</span></p>
           <p className="mt-1 text-zinc-600">Cloud provider API keys are stored in SQLite and only sent to the respective provider&apos;s API endpoint.</p>
@@ -978,7 +935,6 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "connection", label: "Connection", icon: <Link2 size={14} /> },
   { id: "cloud", label: "Cloud Providers", icon: <Cloud size={14} /> },
   { id: "scoring", label: "Scoring", icon: <BarChart2 size={14} /> },
-  { id: "community", label: "Community", icon: <Users size={14} /> },
   { id: "data", label: "Danger Zone", icon: <Shield size={14} /> },
   { id: "about", label: "About", icon: <Info size={14} /> },
 ];
@@ -1024,7 +980,6 @@ export default function SettingsPage() {
           {activeTab === "connection" && <AnimatePresenceWrapper><ConnectionTab /></AnimatePresenceWrapper>}
           {activeTab === "cloud" && <AnimatePresenceWrapper><CloudTab /></AnimatePresenceWrapper>}
           {activeTab === "scoring" && <AnimatePresenceWrapper><ScoringTab /></AnimatePresenceWrapper>}
-          {activeTab === "community" && <AnimatePresenceWrapper><CommunityTab /></AnimatePresenceWrapper>}
           {activeTab === "data" && <AnimatePresenceWrapper><DataTab /></AnimatePresenceWrapper>}
           {activeTab === "about" && <AnimatePresenceWrapper><AboutTab /></AnimatePresenceWrapper>}
         </div>
