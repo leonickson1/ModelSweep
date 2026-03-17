@@ -8,6 +8,7 @@ import {
   ThumbsUp, ThumbsDown, Clock, Cpu, Gavel,
   MoreHorizontal, Trash2, Download, Zap, Star,
   Info, Wrench, MessageSquare, ShieldAlert as ShieldAlertIcon,
+  Play,
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -330,6 +331,7 @@ export default function ResultDetailPage() {
           setRun(d.run);
           const st = d.run.suite_type || "standard";
           setSuiteType(st);
+          if (st !== "standard") setChartMode("pipeline");
           fetch(`/api/suites/${d.run.suite_id}`)
             .then((r) => r.json())
             .then((sd) => setSuite(sd.suite))
@@ -741,21 +743,29 @@ export default function ResultDetailPage() {
               <h2 className="text-zinc-400 text-sm font-medium">Score Breakdown</h2>
               <InfoTooltip text="Visual comparison of model performance across categories" />
             </div>
-            <div className="flex gap-1 bg-white/5 rounded-lg p-1">
-              {(["radar", "bars", "distribution", "pipeline"] as const).map((mode) => (
-                <button key={mode} onClick={() => setChartMode(mode)}
-                  className={cn("px-3 py-1 rounded-md text-xs capitalize transition-colors",
-                    chartMode === mode ? "bg-white/10 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  {mode}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <Link href={`/suite/${run.suite_id}/run`}>
+                <Button variant="secondary" size="sm"><Play size={12} />View Run</Button>
+              </Link>
+              <div className="flex gap-1 bg-white/5 rounded-lg p-1">
+                {(suiteType === "standard"
+                  ? ["radar", "bars", "distribution", "pipeline"] as const
+                  : ["pipeline"] as const
+                ).map((mode) => (
+                  <button key={mode} onClick={() => setChartMode(mode)}
+                    className={cn("px-3 py-1 rounded-md text-xs capitalize transition-colors",
+                      chartMode === mode ? "bg-white/10 text-zinc-200" : "text-zinc-500 hover:text-zinc-300"
+                    )}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          {chartMode === "radar" && <ModelRadarChart models={chartModels} height={320} />}
-          {chartMode === "bars" && <CategoryBarChart models={chartModels} height={280} />}
-          {chartMode === "distribution" && (
+          {suiteType === "standard" && chartMode === "radar" && <ModelRadarChart models={chartModels} height={320} />}
+          {suiteType === "standard" && chartMode === "bars" && <CategoryBarChart models={chartModels} height={280} />}
+          {suiteType === "standard" && chartMode === "distribution" && (
             <ScoreDistribution
               models={activeModels
                 .filter((m) => !selectedModel || m.model_name === selectedModel)
@@ -777,7 +787,7 @@ export default function ResultDetailPage() {
               }
             />
           )}
-          {chartMode === "pipeline" && (
+          {(chartMode === "pipeline" || suiteType !== "standard") && (
             <PipelineReplayView
               suiteName={run.suite_name}
               suiteType={suiteType}
