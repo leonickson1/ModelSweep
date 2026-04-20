@@ -1,18 +1,36 @@
 # ModelSweep
 
+![Next.js](https://img.shields.io/badge/Next.js_14-black?style=flat-square&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-000000?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+
 A GUI-first evaluation workbench for local LLMs running on Ollama. Build test suites, run evaluations across models, execute code in Docker containers, score with cloud judges and peer voting, and visualize everything through interactive dashboards.
 
 ---
 
 ## Screenshots
 
-![Dashboard](screenshots/main.png)
-
-![Test Suite Editor](screenshots/test_suite.png)
-
-![Test Suite with Scenarios](screenshots/test_sutite_example.png)
-
-![Model Browser](screenshots/model_download.png)
+<table>
+  <tr>
+    <td width="50%"><img src="screenshots/main.png" alt="Dashboard" /></td>
+    <td width="50%"><img src="screenshots/test_suite.png" alt="Test Suites" /></td>
+  </tr>
+  <tr>
+    <td><em>Dashboard — model status, evaluation stats</em></td>
+    <td><em>Test Suites — create, import, manage</em></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="screenshots/test_sutite_example.png" alt="Suite Editor" /></td>
+    <td width="50%"><img src="screenshots/model_download.png" alt="Model Browser" /></td>
+  </tr>
+  <tr>
+    <td><em>Suite Editor — scenarios with test cases</em></td>
+    <td><em>Model Browser — search and install models</em></td>
+  </tr>
+</table>
 
 ---
 
