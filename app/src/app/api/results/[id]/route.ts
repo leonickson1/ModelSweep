@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getRunById, updateManualVote, deleteRun } from "@/lib/db";
+import { getDb, getRunById, updateManualVote, deleteRun, getModelResultIdForPrompt, recomputeModelOverallWithVotes } from "@/lib/db";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -18,6 +18,12 @@ export async function PATCH(req: NextRequest) {
     if (!promptResultId) return NextResponse.json({ error: "promptResultId required" }, { status: 400 });
     const db = getDb();
     updateManualVote(db, promptResultId, vote);
+
+    // Re-aggregate the model's overall score so the vote is reflected in the
+    // results dashboard without requiring a re-run.
+    const owner = getModelResultIdForPrompt(db, promptResultId);
+    if (owner) recomputeModelOverallWithVotes(db, owner.runId, owner.modelResultId);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

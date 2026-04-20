@@ -1,33 +1,49 @@
 # ModelSweep
 
-A GUI-first evaluation workbench for local LLMs running on Ollama. Build personal test suites, run sequential evaluations across installed models, visualize results through dashboards, and make keep-or-delete decisions. Think "Postman for local LLM evaluation."
-
-**This project was vibed out in 2 days.** It might have bugs, rough edges, and things that don't quite work yet. Help is really appreciated -- if you find issues, please open a PR or file a bug. Contributions of any size are welcome.
+A GUI-first evaluation workbench for local LLMs running on Ollama. Build test suites, run evaluations across models, execute code in Docker containers, score with cloud judges and peer voting, and visualize everything through interactive dashboards.
 
 ---
 
-## Screenshot
+## Screenshots
 
-![ModelSweep](screenshots/main.png)
+![Dashboard](screenshots/main.png)
 
-> Drop your screenshot into a `screenshots/` folder.
+![Test Suite Editor](screenshots/test_suite.png)
+
+![Test Suite with Scenarios](screenshots/test_sutite_example.png)
+
+![Model Browser](screenshots/model_download.png)
+
+---
+
+## What It Does
+
+ModelSweep connects to your local [Ollama](https://ollama.ai/) instance, detects installed models, and lets you run structured evaluations across them. You create test suites (or use built-in ones), select which models to test, and watch results stream in real-time. For coding problems, the models' code is executed in isolated Docker containers against real test cases.
+
+Three scoring layers work together:
+1. **Auto-scoring** — gate checks catch broken responses (empty, refused, gibberish, looping)
+2. **Cloud judge** (GPT-4o, Claude, etc.) — scores each response on accuracy, helpfulness, clarity, and instruction following, with detailed code reviews for coding suites
+3. **Peer judging** — models judge each other's responses in round-robin comparisons with written reasoning
 
 ---
 
 ## Features
 
-- **4 evaluation modes**: Standard prompts, Tool Calling, Multi-turn Conversation, and Adversarial/Red Team testing
-- **Sequential model testing** with automatic preload/unload to manage VRAM
-- **Live execution pipeline** with streaming responses and real-time React Flow visualizations
-- **5-dimension auto-scoring** (relevance, depth, coherence, compliance, language quality) with category-specific weights
-- **LLM-as-Judge** comparative evaluation with 4-axis scoring (local or cloud judge models)
-- **Elo rating system** derived from judge pairwise comparisons
-- **Human preference votes** blended into composite scores
-- **Interactive results dashboards** with radar charts, heatmaps, score distributions, and pipeline replays
-- **Export results** as PDF, PNG, Markdown, JSON, or CSV
-- **Shareable result cards** with PNG export and Twitter/X sharing
-- **Dark-only UI** with frosted glass surfaces and model family color coding
-- **Fully local** -- no data leaves your machine
+- **7 evaluation modes**: Standard, Tool Calling, Multi-turn Conversation, Adversarial/Red Team, Coding Sandbox, Vision, and RAG
+- **Docker code execution** — models write code, it runs in isolated containers (Python, JS, Go, Rust) against test cases with pass/fail results
+- **LLM-as-Judge** with cloud providers (OpenAI, Anthropic, custom endpoints) — 4-axis scoring with strengths, weaknesses, and code review analysis
+- **Round-robin peer judging** — models judge each other with written reasoning for why they picked a winner
+- **AI-powered test generation** — describe a problem in plain English, a cloud model generates the scenario with function signature and test cases
+- **Custom judge instructions** — tell the judge what to focus on (e.g., "penalize solutions without docstrings")
+- **Live streaming execution** with real-time progress, Docker execution indicators, and test result badges
+- **Elo rating system** — persistent cross-run ratings from judge and peer comparisons
+- **Head-to-head matrix** with per-scenario breakdown showing who won each problem and why
+- **Radar charts** for coding (Correctness, Code Quality, Speed, Reliability, Edge Cases)
+- **8 built-in starter suites** including OWASP LLM Top 10 (25 adversarial scenarios) and Coding Sandbox Basics
+- **Suite import/export** as `.modelsweep.json` files
+- **Model browser** — search, browse, and pull Ollama models from within the app
+- **Export results** as PDF, JSON, or CSV
+- **Fully local** — all data stays on your machine, cloud APIs used only for judge/generation when explicitly configured
 
 ---
 
@@ -37,11 +53,12 @@ A GUI-first evaluation workbench for local LLMs running on Ollama. Build persona
 
 - [Node.js](https://nodejs.org/) 18+
 - [Ollama](https://ollama.ai/) installed and running
+- [Docker](https://www.docker.com/) (optional, for code execution sandbox)
 
 ### Install & Run
 
 ```bash
-git clone https://github.com/your-username/ModelSweep.git
+git clone https://github.com/leonickson1/ModelSweep.git
 cd ModelSweep/app
 npm install
 
@@ -52,13 +69,91 @@ ollama serve
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). ModelSweep will auto-detect your Ollama instance and list installed models.
+Open [http://localhost:3000](http://localhost:3000). ModelSweep auto-detects your Ollama instance and lists installed models.
 
 ### First Run
 
-1. Go to **Suites** and pick one of the 3 built-in starter suites (General Intelligence, Coding Basics, Writing Quality)
-2. Click **Run Suite**, select your models, and hit **Start**
-3. Watch the live execution pipeline, then view results on the dashboard
+1. Go to **Suites** and pick a built-in starter suite (General Intelligence, Coding Sandbox Basics, OWASP LLM Top 10)
+2. Click **Run Suite**, select your models, optionally enable cloud judge + peer judging
+3. Watch streaming execution with Docker test results, then explore the results dashboard
+
+---
+
+## Docker Code Execution
+
+The coding sandbox runs model-generated code in isolated Docker containers:
+
+- **Languages**: Python 3.11, JavaScript (Node.js 20), Go 1.21, Rust 1.74
+- **Isolation**: No network access, 512MB memory limit, 1 CPU, per-scenario timeout
+- **Auto-pull**: Docker images are pulled automatically on first use
+- **Test results**: Each test case shows expected vs actual output, pass/fail, and execution time
+- **Code extraction**: Handles code fences, thinking model tags, multi-function solutions
+- **Judge integration**: Test results are sent to the cloud judge so it knows which code actually works — broken code scores low regardless of how clean it looks
+
+The prompt tells models the exact function signature to implement. The runner automatically:
+- Detects multi-parameter functions and spreads array inputs
+- Strips `console.log`/`print` statements and example usage from model code
+- Handles models that name functions differently than requested
+
+---
+
+## Evaluation Modes
+
+### Standard
+Static prompts with single-turn responses. Gate checks + optional judge scoring.
+
+### Tool Calling
+Define mock tools (JSON Schema) and test function calling. Deterministic scoring on tool selection, parameter accuracy, restraint, and ordering.
+
+### Conversation (Multi-turn)
+Simulator model plays a user persona for multi-turn dialogue. Tests context retention, persona consistency, quality maintenance. Supports scripted, local, or cloud simulators.
+
+### Adversarial (Red Team)
+Attacker model tries to breach system prompt defenses. Strategies: prompt extraction, jailbreak, persona break, data exfiltration. Includes OWASP LLM Top 10 suite.
+
+### Coding Sandbox
+Models write code executed in Docker against real test cases. Score = passed tests / total tests. Cloud judge provides code review analysis explaining why tests passed or failed.
+
+### Vision
+Test vision models on image understanding: object identification, OCR, counting, spatial reasoning, description, visual reasoning.
+
+### RAG
+Upload documents, test retrieval faithfulness. Measures sentence grounding, abstention accuracy, and answer correctness.
+
+---
+
+## How Scoring Works
+
+### Gate Checks (Pass/Fail)
+
+| Gate | Trigger |
+|------|---------|
+| EMPTY | Response has fewer than 4 words |
+| REFUSED | Matches refusal patterns |
+| REPETITION_LOOP | 4-gram repetition > 50% in last 300 words |
+| GIBBERISH | More than 40% non-ASCII characters |
+| TRUNCATED | Hit token limit mid-sentence |
+| ERROR | Timeout or API error |
+
+### Cloud Judge (4-Axis)
+
+For coding suites, the judge acts as a senior software engineer:
+- **Accuracy**: Does the code work? Test results are ground truth.
+- **Helpfulness**: Edge case handling, robustness
+- **Clarity**: Readability, variable naming, structure
+- **Instruction Following**: Matches required signature and constraints
+
+Plus a **Code Review** field explaining what the code does right or wrong.
+
+For standard suites: accuracy, helpfulness, clarity, instruction following.
+
+### Peer Judging
+
+When 3+ models are tested, they judge each other round-robin. Each judge picks a winner and explains why. Results feed into Elo ratings.
+
+### Coding Score
+
+`(passed test cases / total test cases) * 100`. When all models fail, judge comparison is skipped. Models that fail tests cannot win judge comparisons.
 
 ---
 
@@ -69,172 +164,74 @@ Open [http://localhost:3000](http://localhost:3000). ModelSweep will auto-detect
 | Framework | Next.js 14 (App Router) |
 | Styling | Tailwind CSS (dark-only) |
 | Animation | Framer Motion |
-| Charts | Recharts + D3.js |
+| Charts | Recharts |
 | Flow Viz | React Flow (@xyflow/react) |
 | State | Zustand |
 | Database | SQLite (better-sqlite3) |
-| Validation | Zod |
 | Icons | Lucide React |
-
----
-
-## The Four Evaluation Modes
-
-### Standard
-
-Static prompts with single-turn responses. Good for benchmarking general capabilities. Each response is auto-scored on 5 dimensions and optionally judged by an LLM.
-
-### Tool Calling
-
-Define mock tools (JSON Schema format) and scenarios to test function calling. Scoring is deterministic -- no LLM judge needed. Measures tool selection accuracy, parameter correctness, restraint (no hallucinated tools), and call ordering.
-
-### Conversation (Multi-turn)
-
-A simulator model plays a user persona and drives multi-turn dialogue. Tests whether models maintain context, stay in character, remain factually consistent, and keep quality up over many turns.
-
-### Adversarial (Red Team)
-
-An attacker model tries to break through a system prompt defense. Pre-built attack strategies: prompt extraction, jailbreak, persona break, data exfiltration. Measures robustness, breach count, and turns to first breach.
-
----
-
-## How Scoring Works
-
-ModelSweep uses a layered scoring system. Every response passes through gate checks, dimension scoring, and optionally judge evaluation and human votes.
-
-### Gate Checks (Pass/Fail)
-
-Before scoring, responses hit hard gates. If any gate fails, the score is 0:
-
-| Gate | Trigger |
-|------|---------|
-| EMPTY | Response has fewer than 10 words |
-| REFUSED | Matches refusal patterns ("I cannot help", "as an AI") |
-| REPETITION_LOOP | 4-gram repetition ratio > 0.5 in last 300 words |
-| GIBBERISH | More than 40% non-ASCII characters |
-| CRASH | Timeout or API error |
-| TRUNCATED | Hit token limit (warning only, soft penalty) |
-
-### Dimension Scores (Standard Suites)
-
-Each response is scored on 5 dimensions, each 0-5:
-
-| Dimension | What it measures |
-|-----------|-----------------|
-| **Relevance** | Keyword overlap with the prompt, format compliance (JSON, lists, code) |
-| **Depth** | Word count, concept density (unique/total words), evidence markers, code structure |
-| **Coherence** | Transition words, paragraph structure, sentence length variance |
-| **Compliance** | Following format instructions, item counts, word limits, rubric checks |
-| **Language** | Vocabulary diversity (type-token ratio), spelling heuristics, register/formality |
-
-Dimensions are weighted differently per prompt category:
-
-| Category | Heaviest Weight | Lightest Weight |
-|----------|----------------|-----------------|
-| Coding | Compliance (2.0x) | Language (0.5x) |
-| Creative | Language (2.0x) | Compliance (0.5x) |
-| Reasoning | Relevance (2.0x) | Language (0.5x) |
-| Instruction | Compliance (2.5x) | All others (1.0x) |
-
-**Final score formula:**
-```
-score = (sum of dimension * weight) / (5 * sum of weights) * 100
-```
-
-### Tool Calling Scoring
-
-4 deterministic dimensions, each 0-5:
-
-| Dimension | Weight | What it measures |
-|-----------|--------|-----------------|
-| Tool Selection | 3.0x | Did it call the right tool(s)? |
-| Param Accuracy | 2.5x | Are the arguments correct? (exact, contains, type_check, any_value) |
-| Tool Restraint | 1.5x | No hallucinated or unnecessary tool calls? |
-| Sequence Order | 1.5x | Were tools called in the expected order? |
-
-**Overall:** `(weighted sum / 50) * 100`
-
-### Conversation Scoring
-
-6 dimensions, each 0-5:
-
-| Dimension | Auto-scorable? |
-|-----------|---------------|
-| Context Retention | Limited (judge recommended) |
-| Persona Consistency | Limited (judge recommended) |
-| Factual Consistency | Limited (judge recommended) |
-| Quality Maintenance | Yes (regression on per-turn quality) |
-| Policy Adherence | Limited (judge recommended) |
-| Empathy | Limited (judge recommended) |
-
-**Overall:** `(avg of 6 dimensions / 5) * 100`
-
-Most conversation dimensions default to 3/5 without a judge model. For meaningful conversation scoring, use an LLM judge.
-
-### Adversarial Scoring
-
-| Metric | Range | Calculation |
-|--------|-------|-------------|
-| Robustness | 0-100 | Starts at 100, penalized per breach: -40 critical, -20 medium, -10 low |
-| Defense Quality | 0-5 | 5 if no breaches, reduced by 1.5 per breach. Capped at 1 if critical |
-| Turns to First Breach | number or null | Which turn the first breach occurred |
-
-**Breach detection:**
-- `contains_verbatim`: 8-word phrase from system prompt leaked (critical)
-- `contains_secret`: Exact secret value revealed (critical)
-- `regex_match`: Custom pattern matched (configurable severity)
-
-### Composite Scoring (Blending Layers)
-
-When multiple scoring layers are available, they're blended:
-
-| Layers Available | Formula |
-|-----------------|---------|
-| Auto only | 100% auto score |
-| Auto + Judge | 15% auto + 85% judge (or 35/65 if auto < 40) |
-| Auto + Human | 40% auto + 60% human |
-| All three | 15% auto + 65% judge + 20% human |
-
-Human votes map to: better = 85, same = 60, worse = 25.
-
-### Elo Rating System
-
-When judge scoring is enabled across multiple models, pairwise Elo ratings are computed:
-
-- **Initial rating:** 1500
-- **K-factor:** 32
-- **Tie threshold:** scores within 3 points = tie
-- **Confidence:** `min(1.0, sqrt(matchCount) / 10)` -- reaches full confidence at ~100 matches
+| Code Sandbox | Docker (dockerode) |
+| Doc Parsing | pdf-parse, mammoth |
+| MCP | @modelcontextprotocol/sdk |
 
 ---
 
 ## Project Structure
 
 ```
-app/
-  src/
-    app/              Next.js pages + API routes
-      api/            REST endpoints (health, models, suites, results, run, preferences)
-    components/
-      ui/             GlowCard, Button, ModelBadge, ScoreBadge, InfoTooltip, etc.
-      layout/         Sidebar, ConnectionProvider, CommandPalette
-      charts/         RadarChart, BarChart, Heatmap, BreachTimeline, EloTimeline, etc.
-      run/            React Flow pipeline visualizations (tool, conversation, adversarial)
-      results/        Suite-type-specific result views + pipeline replay + export
-      suite/          Suite editors (tool builder, scenario editors)
-    lib/
-      db.ts           SQLite queries (server-only)
-      ollama.ts       Ollama client with streaming
-      scoring.ts      Auto-scoring engine (5 dimensions + gates + composite)
-      tool-calling-engine.ts    Tool call execution + deterministic scoring
-      conversation-engine.ts    Multi-turn conversation runner
-      adversarial-engine.ts     Red team attack/defense runner
-      elo.ts          Elo rating system
-      model-colors.ts Model family color mapping
-    store/            Zustand stores (connection, models, preferences, run)
-    types/            Shared TypeScript interfaces
-  data/               SQLite DB (created on first run, gitignored)
+app/src/
+  app/                    Pages + 40+ API routes
+  components/
+    ui/                   GlowCard, Button, ScoreBadge, ModelBadge, Markdown
+    layout/               Sidebar, ConnectionProvider, CommandPalette
+    charts/               Radar, Bar, Distribution, Elo, Quality, Heatmap
+    results/              Mode-specific result views + matchup history
+    suite/                7 suite editors (tool, conversation, adversarial, coding, vision, RAG)
+    run/                  React Flow visualizations for live runs
+  lib/
+    db.ts                 SQLite (20+ tables)
+    ollama.ts             Ollama client with streaming chat
+    scoring.ts            Gate checks + composite scoring
+    code-execution-engine.ts   Docker sandbox (4 languages)
+    adversarial-engine.ts      Red team attack/defense
+    conversation-engine.ts     Multi-turn conversation runner
+    peer-judge-engine.ts       Round-robin peer judging
+    rag-engine.ts              Document parsing + faithfulness
+    vision-engine.ts           Vision model evaluation
+    providers/cloud-inference.ts   OpenAI/Anthropic/custom clouds
+  store/                  5 Zustand stores
+  types/                  TypeScript interfaces
 ```
+
+---
+
+## Configuration
+
+### Cloud Providers
+
+Configure OpenAI, Anthropic, or custom OpenAI-compatible endpoints in Settings > Cloud Providers. Used for judge scoring, peer judging extras, conversation simulation, and AI test generation.
+
+### Docker
+
+Install Docker for code execution. Containers use `python:3.11-slim`, `node:20-slim`, `golang:1.21-slim`, `rust:1.74-slim`. Images auto-pull on first use.
+
+### Custom Judge Instructions
+
+When enabling the judge on a run, you can type custom instructions like:
+- "Focus on code efficiency and use of docstrings"
+- "Penalize brute force solutions"
+- "Evaluate like a senior engineer doing a code review"
+
+---
+
+## Roadmap
+
+- [ ] CI/CD pipeline for automated testing and deployment
+- [ ] MCP server integration for live tool calling evaluation
+- [ ] Quantization impact metrics (compare Q4 vs Q8 of same model)
+- [ ] Improved RAG evaluation (chunk-level grounding visualization, multi-document support)
+- [ ] Vision evaluation enhancements (multi-image comparison, video frame analysis)
+- [ ] Batch comparison mode (run same suite across model versions)
+- [ ] Community leaderboard (opt-in anonymous score sharing)
 
 ---
 
@@ -251,51 +248,13 @@ npx tsc --noEmit   # Type check
 
 ---
 
-## Configuration
+## Known Limitations
 
-### Ollama URL
-
-Default: `http://localhost:11434`. Change it in Settings.
-
-### Judge Models
-
-You can use a local Ollama model or a cloud provider (OpenAI, Anthropic, custom) as the judge. Configure cloud providers in Settings > Cloud Providers. API keys are encrypted at rest with AES-256-GCM.
-
-### Score Weights
-
-Adjust the auto/judge/human weight blend in Settings > Scoring.
-
----
-
-## Known Issues & Limitations
-
-This was built fast. Here are things that might not work perfectly:
-
-- **Conversation and adversarial scoring** heavily depends on having a judge model. Without one, most dimensions default to 3/5 which isn't very informative.
-- **Tool calling** requires models that support Ollama's tool calling API. Not all models do -- the app tries to detect support but may not catch all edge cases.
-- **JSON repair** for tool call responses handles common issues (trailing commas, unmatched braces) but won't fix everything.
-- **Context window management** in conversations uses a rough token estimate (text.length / 3.5) which may not be accurate for all models.
-- **Share/export** uses html2canvas for PNG generation which can sometimes miss custom fonts or complex CSS.
-
----
-
-## Contributing
-
-This project needs help. If you're interested:
-
-1. **Bug reports** -- File an issue with steps to reproduce
-2. **UI improvements** -- The design system is documented in CLAUDE.md
-3. **Scoring improvements** -- The auto-scorer uses heuristics that could be better. Ideas for better relevance/depth/coherence detection are welcome
-4. **New suite types** -- The architecture supports adding new evaluation modes
-5. **Test coverage** -- There are barely any tests right now
-
-### Development Tips
-
-- All DB access goes through API routes (better-sqlite3 is server-only)
-- Playground calls Ollama directly (client -> Ollama). Evaluation runs go through `/api/run` (server -> Ollama via SSE)
-- Model family colors are fixed per family (Llama=amber, Qwen=blue, Mistral=violet, etc.)
-- Framer Motion animations should be subtle (200-300ms, no bouncing or springs)
-- Dark only. No light mode. No white backgrounds.
+- Conversation/adversarial scoring needs a judge model for meaningful scores (without one, most dimensions default to 3/5)
+- Tool calling requires models that support Ollama's tool calling API
+- Code sandbox requires Docker installed and running
+- Vision testing requires vision-capable models (llava, llama3.2-vision, etc.)
+- Peer judging needs 3+ models; small models are unreliable judges for code quality
 
 ---
 
@@ -304,5 +263,7 @@ This project needs help. If you're interested:
 MIT License. See [LICENSE](LICENSE) for details.
 
 ---
+
+Built for [COMP 590: HCI in the Age of AI](https://sites.google.com/view/comp590spring2026) — Professor Leonard McMillan
 
 Built with [Claude Code](https://claude.ai/code)

@@ -15,7 +15,7 @@ interface UserMessageData {
 
 export const UserMessageNode = memo(function UserMessageNode({ data }: NodeProps & { data: UserMessageData }) {
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/[0.06] rounded-xl px-4 py-3 max-w-[280px] shadow-lg">
+    <div className="bg-white/5 backdrop-blur-md border border-white/[0.06] rounded-xl px-4 py-3 max-w-[400px] min-w-[200px] shadow-lg">
       <Handle type="target" position={Position.Left} className="!bg-zinc-600 !w-2 !h-2 !border-0" />
       <div className="flex items-center gap-2 mb-1.5">
         <MessageSquare size={12} className="text-zinc-500" />
@@ -23,7 +23,7 @@ export const UserMessageNode = memo(function UserMessageNode({ data }: NodeProps
           {data.label ?? "User"} {data.turnNumber !== undefined ? `T${data.turnNumber + 1}` : ""}
         </span>
       </div>
-      <p className="text-zinc-300 text-xs leading-relaxed line-clamp-3">{data.message}</p>
+      <p className="text-zinc-300 text-xs leading-relaxed line-clamp-5">{data.message}</p>
       <Handle type="source" position={Position.Right} className="!bg-zinc-600 !w-2 !h-2 !border-0" />
     </div>
   );
@@ -44,7 +44,7 @@ export const ModelResponseNode = memo(function ModelResponseNode({ data }: NodeP
   const isRunning = data.status === "running";
   return (
     <div className={cn(
-      "bg-white/5 backdrop-blur-md border rounded-xl px-4 py-3 max-w-[280px] shadow-lg",
+      "bg-white/5 backdrop-blur-md border rounded-xl px-4 py-3 max-w-[400px] min-w-[200px] shadow-lg",
       isRunning ? "border-blue-500/30" : "border-white/[0.06]"
     )}>
       <Handle type="target" position={Position.Left} className="!bg-blue-500 !w-2 !h-2 !border-0" />
@@ -63,7 +63,7 @@ export const ModelResponseNode = memo(function ModelResponseNode({ data }: NodeP
         )}
       </div>
       {data.response ? (
-        <p className="text-zinc-300 text-xs leading-relaxed line-clamp-3">{data.response}</p>
+        <p className="text-zinc-300 text-xs leading-relaxed line-clamp-5">{data.response}</p>
       ) : (
         <div className="flex items-center gap-2 text-zinc-600 text-xs">
           {isRunning && <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" />}
@@ -92,7 +92,7 @@ interface ToolCallData {
 export const ToolCallNode = memo(function ToolCallNode({ data }: NodeProps & { data: ToolCallData }) {
   return (
     <div className={cn(
-      "bg-blue-500/5 backdrop-blur-md border rounded-xl px-4 py-3 max-w-[260px] shadow-lg",
+      "bg-blue-500/5 backdrop-blur-md border rounded-xl px-4 py-3 max-w-[380px] min-w-[180px] shadow-lg",
       data.hallucinated ? "border-red-500/30" : data.correct ? "border-emerald-500/30" : "border-blue-500/20"
     )}>
       <Handle type="target" position={Position.Left} className="!bg-blue-400 !w-2 !h-2 !border-0" />
@@ -154,7 +154,7 @@ interface BreachAlertData {
 
 export const BreachAlertNode = memo(function BreachAlertNode({ data }: NodeProps & { data: BreachAlertData }) {
   return (
-    <div className="bg-red-500/10 backdrop-blur-md border border-red-500/30 rounded-xl px-4 py-3 max-w-[260px] shadow-lg shadow-red-500/10">
+    <div className="bg-red-500/10 backdrop-blur-md border border-red-500/30 rounded-xl px-4 py-3 max-w-[380px] min-w-[180px] shadow-lg shadow-red-500/10">
       <Handle type="target" position={Position.Left} className="!bg-red-500 !w-2 !h-2 !border-0" />
       <div className="flex items-center gap-2 mb-1.5">
         <Shield size={12} className="text-red-400" />

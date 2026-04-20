@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   ReactFlow,
   Background,
+  Controls,
   type Node,
   type Edge,
 } from "@xyflow/react";
@@ -145,23 +146,27 @@ export default function ToolFlow({ modelName, scenarios, currentScenarioIndex }:
   }, [scenarios, currentScenarioIndex, modelName]);
 
   return (
-    <div className="w-full h-[500px] bg-zinc-950/50 rounded-xl border border-white/[0.06] overflow-hidden">
+    <div className="w-full h-[700px] bg-zinc-950/50 rounded-xl border border-white/[0.06] overflow-hidden relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        minZoom={0.3}
-        maxZoom={1.5}
-        defaultViewport={{ x: 20, y: 20, zoom: 0.85 }}
-        nodesDraggable={false}
+        minZoom={0.15}
+        maxZoom={2}
+        defaultViewport={{ x: 20, y: 20, zoom: 0.7 }}
+        nodesDraggable
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable
         panOnDrag
         zoomOnScroll
       >
         <Background color="#18181b" gap={20} size={1} />
+        <Controls
+          showInteractive={false}
+          className="!bg-white/5 !border-white/[0.06] !rounded-lg [&>button]:!bg-transparent [&>button]:!border-white/[0.06] [&>button]:!text-zinc-400"
+        />
       </ReactFlow>
     </div>
   );

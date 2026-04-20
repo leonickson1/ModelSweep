@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getCloudProviderById, updateCloudProvider, deleteCloudProvider } from "@/lib/db";
+import { getDb, getCloudProviderById, updateCloudProvider, deleteCloudProvider, setCloudSpendLimit } from "@/lib/db";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -16,6 +16,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       useForJudging: body.useForJudging,
       useForPlayground: body.useForPlayground,
     });
+
+    if (typeof body.spendLimitUsd === "number" && Number.isFinite(body.spendLimitUsd) && body.spendLimitUsd >= 0) {
+      setCloudSpendLimit(db, params.id, body.spendLimitUsd);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

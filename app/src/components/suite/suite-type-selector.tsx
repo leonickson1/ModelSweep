@@ -1,9 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { FileText, Wrench, MessageSquare, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SuiteType } from "@/types";
+import { ListTodo, Wrench, MessageSquare, ShieldAlert, Code2, Image as ImageIcon, BookText } from "lucide-react";
 
 interface SuiteTypeSelectorProps {
   value: SuiteType;
@@ -14,98 +13,49 @@ interface SuiteTypeSelectorProps {
 const SUITE_TYPES: {
   value: SuiteType;
   label: string;
-  sublabel: string;
-  icon: React.ReactNode;
-  color: string;
-  glowColor: string;
   description: string;
+  icon: React.ElementType;
 }[] = [
-  {
-    value: "standard",
-    label: "Standard",
-    sublabel: "Single Prompt",
-    icon: <FileText size={20} />,
-    color: "text-zinc-300 border-zinc-500/30 bg-zinc-500/10",
-    glowColor: "bg-zinc-500/10",
-    description:
-      "Test models with individual prompts. Best for comparing output quality, coding ability, and writing style.",
-  },
-  {
-    value: "tool_calling",
-    label: "Tools",
-    sublabel: "Function Calling",
-    icon: <Wrench size={20} />,
-    color: "text-blue-300 border-blue-500/30 bg-blue-500/10",
-    glowColor: "bg-blue-500/10",
-    description:
-      "Define mock tools and test scenarios. Evaluate which models pick the right tool, format parameters correctly, and avoid unnecessary calls.",
-  },
-  {
-    value: "conversation",
-    label: "Convo",
-    sublabel: "Multi Turn",
-    icon: <MessageSquare size={20} />,
-    color: "text-violet-300 border-violet-500/30 bg-violet-500/10",
-    glowColor: "bg-violet-500/10",
-    description:
-      "Test multi-turn conversation coherence. Define personas, run dynamic dialogues, and score context retention.",
-  },
-  {
-    value: "adversarial",
-    label: "Attack",
-    sublabel: "Red Team",
-    icon: <Shield size={20} />,
-    color: "text-rose-300 border-rose-500/30 bg-rose-500/10",
-    glowColor: "bg-rose-500/10",
-    description:
-      "Test adversarial robustness and system prompt defense. Run red-team attacks to find vulnerabilities.",
-  },
+  { value: "standard", label: "Standard", description: "Test models with individual prompts. Best for comparing output quality, coding ability, and writing style.", icon: ListTodo },
+  { value: "tool_calling", label: "Tools", description: "Define mock tools and test scenarios. Evaluate which models pick the right tool and format parameters correctly.", icon: Wrench },
+  { value: "conversation", label: "Convo", description: "Test multi-turn conversation coherence. Define personas, run dynamic dialogues, and score context retention.", icon: MessageSquare },
+  { value: "coding", label: "Code", description: "Write coding challenges with test cases. Models generate code, Docker runs it against your tests.", icon: Code2 },
+  { value: "adversarial", label: "Attack", description: "Test adversarial robustness and system prompt defense. Run red-team attacks to find vulnerabilities.", icon: ShieldAlert },
+  { value: "vision", label: "Vision", description: "Test vision models on image understanding. Upload images, define questions, and score on object ID, OCR, counting, and more.", icon: ImageIcon },
+  { value: "rag", label: "RAG", description: "Upload a document, define questions with ground truth answers. Test whether models use retrieved context faithfully.", icon: BookText },
 ];
 
 export function SuiteTypeSelector({ value, onChange, disabled }: SuiteTypeSelectorProps) {
   const selected = SUITE_TYPES.find((t) => t.value === value) ?? SUITE_TYPES[0];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const isComingSoon = (_type: SuiteType) => false; // All modes now available
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-2">
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
         {SUITE_TYPES.map((type) => {
-          const active = value === type.value;
-          const comingSoon = isComingSoon(type.value);
+          const Icon = type.icon;
+          const isSelected = value === type.value;
           return (
-            <motion.button
+            <button
               key={type.value}
-              onClick={() => !disabled && !comingSoon && onChange(type.value)}
-              whileHover={!disabled && !comingSoon ? { scale: 1.02 } : undefined}
-              whileTap={!disabled && !comingSoon ? { scale: 0.98 } : undefined}
+              onClick={() => !disabled && onChange(type.value)}
+              disabled={disabled}
               className={cn(
-                "relative flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border transition-all text-center",
-                "bg-white/5 backdrop-blur-md",
-                active
-                  ? type.color
-                  : "border-white/[0.06] text-zinc-500 hover:bg-white/[0.08]",
-                (disabled || comingSoon) && "opacity-40 cursor-not-allowed",
-                "focus-visible:ring-2 focus-visible:ring-white/20 outline-none"
+                "flex flex-col items-start gap-2 p-4 rounded-2xl transition-all duration-200 border text-left",
+                isSelected
+                  ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.1)] scale-[1.02]"
+                  : "bg-[#121214] border-white/5 text-zinc-400 hover:bg-white/5 hover:border-white/10 hover:text-white",
+                disabled && "opacity-40 cursor-not-allowed hover:bg-[#121214] hover:scale-100 hover:border-white/5"
               )}
-              disabled={disabled || comingSoon}
             >
-              {active && (
-                <motion.div
-                  layoutId="suite-type-glow"
-                  className={cn("absolute inset-0 rounded-xl blur-xl opacity-30", type.glowColor)}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-              <span className="relative z-10">{type.icon}</span>
-              <span className="relative z-10 text-xs font-medium">{type.label}</span>
-              <span className="relative z-10 text-[10px] opacity-60">{type.sublabel}</span>
-              {/* All modes available */}
-            </motion.button>
+              <Icon size={18} className={cn("mb-1", isSelected ? "text-black" : "")} />
+              <span className="text-[15px] font-semibold tracking-tight leading-none">{type.label}</span>
+            </button>
           );
         })}
       </div>
-      <p className="text-zinc-500 text-xs">{selected.description}</p>
+      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.05]">
+        <p className="text-zinc-400 text-[14px] leading-relaxed">{selected.description}</p>
+      </div>
     </div>
   );
 }

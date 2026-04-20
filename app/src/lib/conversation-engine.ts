@@ -1,4 +1,10 @@
 import type { PromptDifficulty } from "@/types";
+import {
+  computePerTurnQuality,
+  computeQualitySlope,
+  detectPersonaBreak,
+  type FailureModeResult,
+} from "./conversation-scoring";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -42,6 +48,13 @@ export interface ConversationScore {
   qualitySlope: number;         // negative = decay
 }
 
+export interface PerTurnJudgeScores {
+  relevance: number;     // 1-5
+  consistency: number;   // 1-5
+  persona: number;       // 1-5
+  quality: number;       // 1-5
+}
+
 export interface ConversationResult {
   scenarioId: string;
   modelName: string;
@@ -54,6 +67,8 @@ export interface ConversationResult {
   contextLimit: number;
   contextUtilization: number;
   totalDuration: number;
+  failureModes?: FailureModeResult[];
+  perTurnJudgeScores?: PerTurnJudgeScores[];
 }
 
 // ─── Token estimation ───────────────────────────────────────────────────────
@@ -79,12 +94,41 @@ async function getModelContextLimit(ollamaUrl: string, model: string): Promise<n
 
 // ─── Generate simulated user messages ───────────────────────────────────────
 
+/** Optional cloud chat function for cloud simulator mode */
+export type CloudSimulatorFn = (messages: Array<{ role: string; content: string }>) => Promise<string>;
+
+function buildSimulatorPrompt(
+  scenario: ConversationScenario,
+  history: ConversationTurn[],
+  turnNumber: number
+): string {
+  const historyBlock = history.length > 0
+    ? `The conversation so far:\n${history.map(t =>
+        `${t.role === "user" ? "YOU" : "ASSISTANT"}: ${t.content}`
+      ).join("\n\n")}`
+    : "This is the start of the conversation.";
+
+  const turnInstruction = scenario.turnInstructions?.[turnNumber]
+    ?? "Continue the conversation naturally based on your persona. Stay in character.";
+
+  return `You are simulating a user in a conversation.
+Your persona: ${scenario.userPersona}
+
+${historyBlock}
+
+This is turn ${turnNumber + 1} of ${scenario.turnCount}.
+${turnInstruction}
+
+IMPORTANT: Stay in character. Generate ONLY your next message as the user. Do not include any meta-commentary or labels. Just the message text.`;
+}
+
 async function generateSimulatedUserMessage(
   ollamaUrl: string,
   simulatorModel: string,
   scenario: ConversationScenario,
   history: ConversationTurn[],
-  turnNumber: number
+  turnNumber: number,
+  cloudSimulatorFn?: CloudSimulatorFn
 ): Promise<string> {
   // Scripted mode: use pre-defined messages
   if (scenario.simulatorMode === "scripted" && scenario.scriptedMessages) {
@@ -92,27 +136,24 @@ async function generateSimulatedUserMessage(
       ?? "Can you tell me more about that?";
   }
 
-  const simulatorPrompt = `You are simulating a user in a conversation.
-Your persona: ${scenario.userPersona}
+  const prompt = buildSimulatorPrompt(scenario, history, turnNumber);
 
-${history.length > 0 ? `The conversation so far:
-${history.map(t =>
-  `${t.role === "user" ? "YOU" : "ASSISTANT"}: ${t.content}`
-).join("\n\n")}` : "This is the start of the conversation."}
+  // Cloud simulator mode
+  if (scenario.simulatorMode === "cloud" && cloudSimulatorFn) {
+    try {
+      return await cloudSimulatorFn([{ role: "user", content: prompt }]);
+    } catch {
+      // Fallback to local if cloud fails
+    }
+  }
 
-This is turn ${turnNumber + 1} of ${scenario.turnCount}.
-${scenario.turnInstructions?.[turnNumber] ??
-  "Continue the conversation naturally based on your persona."}
-
-Generate ONLY your next message as the user. Do not include any meta-commentary or labels. Just the message text.`;
-
-  // For local models, call Ollama directly
+  // Local model simulator
   const response = await fetch(`${ollamaUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: simulatorModel,
-      messages: [{ role: "user", content: simulatorPrompt }],
+      messages: [{ role: "user", content: prompt }],
       stream: false,
       options: { temperature: 0.8, num_predict: 512 },
     }),
@@ -125,18 +166,23 @@ Generate ONLY your next message as the user. Do not include any meta-commentary 
 async function generateFirstUserMessage(
   ollamaUrl: string,
   simulatorModel: string,
-  scenario: ConversationScenario
+  scenario: ConversationScenario,
+  cloudSimulatorFn?: CloudSimulatorFn
 ): Promise<string> {
   if (scenario.simulatorMode === "scripted" && scenario.scriptedMessages?.[0]) {
     return scenario.scriptedMessages[0];
   }
 
-  const prompt = `You are simulating a user starting a conversation.
-Your persona: ${scenario.userPersona}
+  const prompt = buildSimulatorPrompt(scenario, [], 0);
 
-${scenario.turnInstructions?.[0] ?? "Start the conversation naturally based on your persona."}
-
-Generate ONLY your opening message. No meta-commentary.`;
+  // Cloud simulator mode
+  if (scenario.simulatorMode === "cloud" && cloudSimulatorFn) {
+    try {
+      return await cloudSimulatorFn([{ role: "user", content: prompt }]);
+    } catch {
+      // Fallback to local
+    }
+  }
 
   const response = await fetch(`${ollamaUrl}/api/chat`, {
     method: "POST",
@@ -161,7 +207,8 @@ export async function runConversationScenario(
   scenario: ConversationScenario,
   onTurn?: (turn: ConversationTurn) => void,
   onContextWarning?: (msg: string) => void,
-  onContextUpdate?: (info: { tokensUsed: number; contextLimit: number; utilization: number }) => void
+  onContextUpdate?: (info: { tokensUsed: number; contextLimit: number; utilization: number }) => void,
+  cloudSimulatorFn?: CloudSimulatorFn
 ): Promise<ConversationResult> {
   const history: ConversationTurn[] = [];
   const targetMessages: { role: string; content: string }[] = [];
@@ -197,8 +244,8 @@ export async function runConversationScenario(
 
     // Generate simulated user message
     const userMessage = turn === 0
-      ? await generateFirstUserMessage(ollamaUrl, scenario.simulatorModel, scenario)
-      : await generateSimulatedUserMessage(ollamaUrl, scenario.simulatorModel, scenario, history, turn);
+      ? await generateFirstUserMessage(ollamaUrl, scenario.simulatorModel, scenario, cloudSimulatorFn)
+      : await generateSimulatedUserMessage(ollamaUrl, scenario.simulatorModel, scenario, history, turn, cloudSimulatorFn);
 
     const userTurn: ConversationTurn = {
       role: "user",
@@ -279,8 +326,8 @@ export async function runConversationScenario(
       utilization: estimatedTokensUsed / modelContextLimit,
     });
 
-    // Simple per-turn quality heuristic
-    const turnQuality = estimateTurnQuality(responseText, turn);
+    // Per-turn quality scoring (uses cross-turn repetition detection)
+    const turnQuality = computePerTurnQuality(responseText, turn, history);
     perTurnQuality.push(turnQuality);
   }
 
@@ -290,6 +337,13 @@ export async function runConversationScenario(
   // Compute auto-scores
   const score = computeConversationAutoScore(history, scenario, perTurnQuality);
   const overallScore = computeConversationOverall(score);
+
+  // Run failure mode detection
+  const failureModes: FailureModeResult[] = [];
+
+  // Always check persona consistency
+  const personaResult = detectPersonaBreak(history, scenario.userPersona);
+  failureModes.push(personaResult);
 
   return {
     scenarioId: scenario.id,
@@ -303,31 +357,11 @@ export async function runConversationScenario(
     contextLimit: modelContextLimit,
     contextUtilization: estimatedTokensUsed / modelContextLimit,
     totalDuration,
+    failureModes,
   };
 }
 
 // ─── Quality estimation ─────────────────────────────────────────────────────
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function estimateTurnQuality(response: string, _turn: number): number {
-  if (!response || response.length < 10) return 1;
-
-  let quality = 3; // baseline
-
-  // Length bonus
-  const words = response.split(/\s+/).length;
-  if (words >= 30) quality += 0.5;
-  if (words >= 80) quality += 0.5;
-
-  // Repetition penalty
-  const sentences = response.split(/[.!?]+/).filter(Boolean);
-  const uniqueSentences = new Set(sentences.map((s) => s.trim().toLowerCase()));
-  if (sentences.length > 2 && uniqueSentences.size / sentences.length < 0.5) {
-    quality -= 1.5;
-  }
-
-  return Math.max(0, Math.min(5, quality));
-}
 
 function computeConversationAutoScore(
   history: ConversationTurn[],
@@ -337,15 +371,7 @@ function computeConversationAutoScore(
   const assistantTurns = history.filter((t) => t.role === "assistant");
 
   // Quality slope (linear regression)
-  let qualitySlope = 0;
-  if (perTurnQuality.length > 1) {
-    const n = perTurnQuality.length;
-    const sumX = (n * (n - 1)) / 2;
-    const sumY = perTurnQuality.reduce((a, b) => a + b, 0);
-    const sumXY = perTurnQuality.reduce((a, q, i) => a + i * q, 0);
-    const sumX2 = (n * (n - 1) * (2 * n - 1)) / 6;
-    qualitySlope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  }
+  const qualitySlope = computeQualitySlope(perTurnQuality);
 
   // Quality decay score: 5 if no decay, lower if slope is negative
   const qualityDecay = Math.max(0, Math.min(5, 5 + qualitySlope * 3));

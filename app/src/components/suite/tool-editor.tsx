@@ -3,7 +3,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical, Code, Copy, Upload, Check, X } from "lucide-react";
-import { GlowCard } from "@/components/ui/glow-card";
 import { Button } from "@/components/ui/button";
 import type { ToolParameter, MockReturn } from "@/types";
 
@@ -166,15 +165,15 @@ function ParameterList({ params, depth, readOnly, onUpdate }: ParameterListProps
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
-            className={`${bgClass} ${depth > 0 ? `border-l-2 ${borderClass}` : ""} rounded-lg p-2 space-y-2`}
+            className={`${bgClass} ${depth > 0 ? `border-l-2 ${borderClass}` : ""} rounded-xl p-3 space-y-3`}
           >
-            <div className="flex items-start gap-2">
-              <div className="flex-1 grid grid-cols-4 gap-2">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 grid grid-cols-4 gap-3">
                 <input
                   value={param.name}
                   onChange={(e) => updateNestedParam(pi, { name: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") })}
                   disabled={readOnly}
-                  className="bg-transparent border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-blue-500/30"
+                  className="bg-[#121214] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-zinc-200 font-mono outline-none focus:border-white/30"
                   placeholder="name"
                 />
                 <select
@@ -182,14 +181,12 @@ function ParameterList({ params, depth, readOnly, onUpdate }: ParameterListProps
                   onChange={(e) => {
                     const newType = e.target.value as ToolParameter["type"];
                     const updates: Partial<ToolParameter> = { type: newType };
-                    // Initialize nested structures when switching types
                     if (newType === "object" && !param.properties) {
                       updates.properties = [];
                     }
                     if (newType === "array" && !param.items) {
                       updates.items = { type: "string" };
                     }
-                    // Clean up when switching away
                     if (newType !== "object") {
                       updates.properties = undefined;
                     }
@@ -202,7 +199,7 @@ function ParameterList({ params, depth, readOnly, onUpdate }: ParameterListProps
                     updateNestedParam(pi, updates);
                   }}
                   disabled={readOnly}
-                  className="bg-zinc-900 border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-300 outline-none"
+                  className="bg-[#1A1A1C] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-blue-300 font-mono outline-none"
                 >
                   {(depth < MAX_NESTING_DEPTH ? PARAM_TYPES : PARAM_TYPES.filter(t => t !== "object" && t !== "array")).map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -212,26 +209,26 @@ function ParameterList({ params, depth, readOnly, onUpdate }: ParameterListProps
                   value={param.description}
                   onChange={(e) => updateNestedParam(pi, { description: e.target.value })}
                   disabled={readOnly}
-                  className="bg-transparent border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-400 outline-none focus:border-blue-500/30"
+                  className="bg-[#121214] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-white placeholder-zinc-500 outline-none focus:border-white/30"
                   placeholder="description"
                 />
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1 text-xs text-zinc-500">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={param.required}
                       onChange={(e) => updateNestedParam(pi, { required: e.target.checked })}
                       disabled={readOnly}
-                      className="rounded border-white/20"
+                      className="rounded border-white/20 accent-blue-500 w-4 h-4"
                     />
-                    req
+                    <span className="text-[13px] font-bold tracking-widest uppercase text-zinc-500 group-hover:text-zinc-400">Req</span>
                   </label>
                   {!readOnly && (
                     <button
                       onClick={() => deleteNestedParam(pi)}
-                      className="text-zinc-700 hover:text-red-400 transition-colors"
+                      className="text-zinc-600 hover:text-red-400 transition-colors bg-white/5 rounded-md p-1.5 hover:bg-white/10"
                     >
-                      <Trash2 size={10} />
+                      <Trash2 size={16} />
                     </button>
                   )}
                 </div>
@@ -634,8 +631,8 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
           Tool Definitions
         </h3>
         {!readOnly && (
@@ -660,17 +657,17 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
           >
-            <GlowCard className="p-0 overflow-hidden" animate={false}>
+            <div className="border-b border-white/[0.05] overflow-hidden">
               {/* Tool header */}
               <button
                 onClick={() => setExpandedTool(expandedTool === tool.id ? null : tool.id)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                className="w-full flex items-center gap-4 px-6 py-5 text-left hover:bg-white/[0.04] transition-colors apple-list-row cursor-pointer"
               >
-                <GripVertical size={14} className="text-zinc-700 flex-shrink-0" />
+                <GripVertical size={16} className="text-zinc-700 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-blue-300 font-mono text-sm">{tool.name}</span>
+                  <span className="text-indigo-400 font-mono text-[16px] font-semibold tracking-tight">{tool.name}</span>
                   {tool.description && (
-                    <span className="text-zinc-600 text-xs ml-2">{tool.description}</span>
+                    <span className="text-zinc-400 text-[14px] ml-3">{tool.description}</span>
                   )}
                 </div>
                 <span className="text-zinc-600 text-xs">
@@ -701,30 +698,30 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 space-y-3 border-t border-white/[0.06]">
+                    <div className="p-6 space-y-6 border-t border-white/[0.05] bg-[#09090B]">
                       {/* Name & description */}
-                      <div className="grid grid-cols-2 gap-3 pt-3">
+                      <div className="grid grid-cols-2 gap-6 pt-2">
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Function Name
                           </label>
                           <input
                             value={tool.name}
                             onChange={(e) => updateTool(tool.id, { name: e.target.value.replace(/[^a-zA-Z0-9_]/g, "") })}
                             disabled={readOnly}
-                            className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-200 font-mono outline-none focus:border-blue-500/30 disabled:opacity-50"
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[14px] text-zinc-200 font-mono outline-none focus:border-white/30 disabled:opacity-50"
                             placeholder="function_name"
                           />
                         </div>
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Description
                           </label>
                           <input
                             value={tool.description}
                             onChange={(e) => updateTool(tool.id, { description: e.target.value })}
                             disabled={readOnly}
-                            className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50"
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                             placeholder="What does this tool do?"
                           />
                         </div>
@@ -732,16 +729,16 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
 
                       {/* Parameters */}
                       <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider">
+                        <div className="flex items-center justify-between mb-4">
+                          <label className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
                             Parameters
                           </label>
                           {!readOnly && (
                             <button
                               onClick={() => addParam(tool.id)}
-                              className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
+                              className="text-blue-400 text-[13px] font-semibold hover:text-blue-300 transition-colors"
                             >
-                              + Add
+                              + Add Parameter
                             </button>
                           )}
                         </div>
@@ -759,15 +756,15 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
                       </div>
 
                       {/* Mock Returns */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider">
+                      <div className="pt-4 border-t border-white/[0.05]">
+                        <div className="flex items-center justify-between mb-4">
+                          <label className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
                             Mock Returns
                           </label>
                           {!readOnly && (
                             <button
                               onClick={() => addMockReturn(tool.id)}
-                              className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
+                              className="text-blue-400 text-[13px] font-semibold hover:text-blue-300 transition-colors"
                             >
                               + Add Return
                             </button>
@@ -873,7 +870,7 @@ export function ToolEditor({ tools, suiteId, readOnly, onToolsChange }: ToolEdit
                   </motion.div>
                 )}
               </AnimatePresence>
-            </GlowCard>
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>

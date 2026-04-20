@@ -49,7 +49,7 @@ interface ModelResult {
   promptResults: PromptResult[];
 }
 
-type SuiteType = "standard" | "tool_calling" | "conversation" | "adversarial";
+type SuiteType = "standard" | "tool_calling" | "conversation" | "adversarial" | "coding" | "vision" | "rag";
 
 interface TestRun {
   id: string;
@@ -842,7 +842,6 @@ export default function SharePage() {
                           const _gatePass = autoScores.gatePass !== false;
                           const gateFlag = (autoScores.gateFlag as string) || null;
                           const warnings = (autoScores.warnings as string[]) || [];
-                          const rubricResults = (autoScores.rubricResults as Array<{ type: string; label: string; passed?: boolean }>) || null;
                           const compositeScore = js?.score ?? (autoScores.rubricScore as number | undefined) ?? null;
 
                           return (
@@ -879,13 +878,7 @@ export default function SharePage() {
                                   {warnings.includes("TRUNCATED") && (
                                     <span className="text-amber-500">⚠ Truncated</span>
                                   )}
-                                  {rubricResults && rubricResults.length > 0 && rubricResults.map((r, i) => (
-                                    r.type !== "unstructured" && (
-                                      <span key={i} className={r.passed ? "text-emerald-600" : "text-red-400"}>
-                                        {r.passed ? "✓" : "✗"} {r.label}
-                                      </span>
-                                    )
-                                  ))}
+                                  {/* Rubric checks removed — judge handles quality evaluation */}
                                 </div>
                               )}
 

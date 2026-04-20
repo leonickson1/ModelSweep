@@ -11,7 +11,6 @@ import {
   Zap,
   AlertTriangle,
 } from "lucide-react";
-import { GlowCard } from "@/components/ui/glow-card";
 import { Button } from "@/components/ui/button";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -268,20 +267,20 @@ export function AdversarialEditor({
   );
 
   const inputClass =
-    "w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-blue-500/30 disabled:opacity-50";
+    "w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50";
 
   const selectClass =
-    "bg-zinc-900 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50";
+    "bg-[#1A1A1C] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50";
 
-  const labelClass = "text-zinc-600 text-[10px] uppercase tracking-wider block mb-1";
+  const labelClass = "text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3";
 
   /* ── Render ────────────────────────────────────────────── */
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
-          <Shield size={12} />
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+          <Shield size={14} />
           Adversarial Scenarios
         </h3>
         {!readOnly && (
@@ -300,7 +299,7 @@ export function AdversarialEditor({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
           >
-            <GlowCard className="p-0 overflow-hidden" animate={false}>
+            <div className="border-b border-white/[0.05] overflow-hidden">
               {/* Collapsed header */}
               <button
                 onClick={() =>
@@ -308,11 +307,11 @@ export function AdversarialEditor({
                     expandedScenario === scenario.id ? null : scenario.id
                   )
                 }
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                className="w-full flex items-center gap-4 px-6 py-5 text-left hover:bg-white/[0.04] transition-colors apple-list-row cursor-pointer"
               >
-                <Zap size={14} className="text-zinc-700 flex-shrink-0" />
-                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                  <span className="text-zinc-200 text-sm font-medium truncate">
+                <Zap size={16} className="text-zinc-700 flex-shrink-0" />
+                <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                  <span className="text-white text-[17px] font-medium tracking-tight truncate">
                     {scenario.name}
                   </span>
                   <span
@@ -361,7 +360,7 @@ export function AdversarialEditor({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 space-y-4 border-t border-white/[0.06] pt-3">
+                    <div className="p-6 space-y-6 border-t border-white/[0.05] bg-[#09090B]">
                       {/* Name */}
                       <div>
                         <label className={labelClass}>Scenario Name</label>
@@ -427,14 +426,14 @@ export function AdversarialEditor({
                                 onClick={() =>
                                   updateScenario(scenario.id, { difficulty: d })
                                 }
-                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+                                className={`flex-1 text-[14px] font-semibold capitalize py-3 rounded-xl border transition-all ${
                                   scenario.difficulty === d
                                     ? d === "easy"
-                                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                                       : d === "medium"
-                                      ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                                      : "bg-red-500/15 border-red-500/30 text-red-300"
-                                    : "bg-white/5 border-white/[0.06] text-zinc-500 hover:text-zinc-300"
+                                      ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                                      : "border-red-500/30 bg-red-500/10 text-red-400"
+                                    : "border-white/10 bg-[#121214] text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
                                 } ${readOnly ? "cursor-default" : "cursor-pointer"}`}
                               >
                                 {d}
@@ -512,10 +511,10 @@ export function AdversarialEditor({
                                     attackerMode: mode,
                                   })
                                 }
-                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+                                className={`flex-1 text-[14px] font-semibold capitalize py-3 rounded-xl border transition-all ${
                                   scenario.attackerMode === mode
                                     ? "bg-blue-500/15 border-blue-500/30 text-blue-300"
-                                    : "bg-white/5 border-white/[0.06] text-zinc-500 hover:text-zinc-300"
+                                    : "border-white/10 bg-[#121214] text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
                                 } ${readOnly ? "cursor-default" : "cursor-pointer"}`}
                               >
                                 {mode}
@@ -526,18 +525,18 @@ export function AdversarialEditor({
                       </div>
 
                       {/* Failure conditions */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider flex items-center gap-1">
-                            <AlertTriangle size={10} />
+                      <div className="pt-4 border-t border-white/[0.05]">
+                        <div className="flex items-center justify-between mb-4">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase flex items-center gap-2">
+                            <AlertTriangle size={14} />
                             Failure Conditions
                           </label>
                           {!readOnly && (
                             <button
                               onClick={() => addCondition(scenario.id)}
-                              className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
+                              className="text-blue-400 text-[13px] font-semibold hover:text-blue-300 transition-colors"
                             >
-                              + Add
+                              + Add Condition
                             </button>
                           )}
                         </div>
@@ -548,13 +547,13 @@ export function AdversarialEditor({
                             use default heuristics.
                           </p>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {scenario.failureConditions.map((cond, ci) => (
                               <div
                                 key={ci}
-                                className="flex items-start gap-2 bg-white/[0.03] rounded-lg p-2"
+                                className="flex items-start gap-3 bg-[#121214] border border-white/10 rounded-xl p-3"
                               >
-                                <div className="flex-1 grid grid-cols-4 gap-2">
+                                <div className="flex-1 grid grid-cols-4 gap-3">
                                   {/* Type */}
                                   <select
                                     value={cond.type}
@@ -565,7 +564,7 @@ export function AdversarialEditor({
                                       })
                                     }
                                     disabled={readOnly}
-                                    className="bg-zinc-900 border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-300 outline-none"
+                                    className="bg-[#1A1A1C] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-zinc-300 outline-none focus:border-white/30"
                                   >
                                     {CONDITION_TYPES.map((t) => (
                                       <option key={t} value={t}>
@@ -594,7 +593,7 @@ export function AdversarialEditor({
                                       readOnly ||
                                       cond.type === "character_break"
                                     }
-                                    className="bg-transparent border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-200 font-mono outline-none focus:border-blue-500/30 disabled:opacity-40"
+                                    className="bg-[#121214] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-white font-mono outline-none focus:border-white/30 disabled:opacity-40"
                                     placeholder={
                                       cond.type === "contains_secret"
                                         ? "secret value"
@@ -615,12 +614,12 @@ export function AdversarialEditor({
                                       })
                                     }
                                     disabled={readOnly}
-                                    className="bg-transparent border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-400 outline-none focus:border-blue-500/30"
+                                    className="bg-[#121214] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-white outline-none focus:border-white/30"
                                     placeholder="label"
                                   />
 
                                   {/* Severity + delete */}
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-3">
                                     <select
                                       value={cond.severity || "medium"}
                                       onChange={(e) =>
@@ -630,7 +629,7 @@ export function AdversarialEditor({
                                         })
                                       }
                                       disabled={readOnly}
-                                      className="bg-zinc-900 border border-white/[0.06] rounded px-2 py-1 text-xs text-zinc-300 outline-none flex-1"
+                                      className="bg-[#1A1A1C] border border-white/10 rounded-lg px-3 py-2 text-[14px] text-zinc-300 outline-none flex-1 focus:border-white/30"
                                     >
                                       {SEVERITIES.map((s) => (
                                         <option key={s} value={s}>
@@ -643,9 +642,9 @@ export function AdversarialEditor({
                                         onClick={() =>
                                           deleteCondition(scenario.id, ci)
                                         }
-                                        className="text-zinc-700 hover:text-red-400 transition-colors"
+                                        className="text-zinc-600 hover:text-red-400 transition-colors bg-white/5 rounded-md p-2 hover:bg-white/10"
                                       >
-                                        <Trash2 size={10} />
+                                        <Trash2 size={16} />
                                       </button>
                                     )}
                                   </div>
@@ -659,7 +658,7 @@ export function AdversarialEditor({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </GlowCard>
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>

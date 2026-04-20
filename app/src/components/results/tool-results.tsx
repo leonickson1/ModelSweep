@@ -1,10 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  ChevronDown,
-  ChevronRight,
   AlertTriangle,
   CheckCircle2,
   XCircle,
@@ -544,24 +541,6 @@ const VERDICT_CONFIG: Record<VerdictLevel, { textClass: string; borderClass: str
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function ToolResults({ results }: ToolResultsProps) {
-  const [expandedScenarios, setExpandedScenarios] = useState<Set<string>>(new Set());
-
-  const toggleScenario = (id: string) => {
-    setExpandedScenarios((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // Collect all unique scenario names across models
-  const allScenarios = Array.from(
-    new Map(
-      results.flatMap((r) => (r.scenarios ?? []).map((s) => [s.scenarioId, s]))
-    ).values()
-  );
-
   // Aggregate failure patterns across all models
   const allFailures = results.flatMap((r) => r.failurePatterns ?? []);
   const mergedFailures = new Map<string, FailurePattern>();
@@ -594,9 +573,8 @@ export function ToolResults({ results }: ToolResultsProps) {
             transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
             className="p-6"
           >
-            <div className="flex items-center gap-2 mb-5">
-              <Shield className="w-4 h-4 text-zinc-400" />
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
+            <div className="mb-5">
+              <h3 className="text-[18px] font-semibold text-white/90 tracking-tight">
                 Tool Calling Verdict
               </h3>
             </div>
@@ -704,12 +682,7 @@ export function ToolResults({ results }: ToolResultsProps) {
       {/* ── TOOL CALLING ACCURACY ── */}
       <GlowCard delay={0.1}>
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Wrench className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Tool Calling Accuracy
-            </h3>
-          </div>
+          <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Tool Calling Accuracy</h3>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -780,157 +753,13 @@ export function ToolResults({ results }: ToolResultsProps) {
         </div>
       </GlowCard>
 
-      {/* ── SCENARIO BREAKDOWN ── */}
-      <GlowCard delay={0.2}>
-        <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <CheckCircle2 className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Scenario Breakdown
-            </h3>
-          </div>
-
-          <div className="space-y-1">
-            {allScenarios.map((scenario) => {
-              const isExpanded = expandedScenarios.has(scenario.scenarioId);
-              return (
-                <div key={scenario.scenarioId}>
-                  <button
-                    onClick={() => toggleScenario(scenario.scenarioId)}
-                    className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors text-left group"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                    )}
-                    <span className="text-sm text-zinc-200 font-medium flex-1 truncate">
-                      {scenario.scenarioName}
-                    </span>
-                    <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                      {scenario.category}
-                    </span>
-                    {/* Pass/fail dots for each model */}
-                    <div className="flex items-center gap-1.5 ml-2">
-                      {results.map((r) => {
-                        const ms = (r.scenarios ?? []).find((s) => s.scenarioId === scenario.scenarioId);
-                        const passed = ms?.passed ?? false;
-                        return (
-                          <div key={r.model} className="relative group/dot">
-                            <span
-                              className={cn(
-                                "inline-block w-2.5 h-2.5 rounded-full",
-                                passed ? "bg-emerald-500" : "bg-red-500"
-                              )}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </button>
-
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                        className="overflow-hidden"
-                      >
-                        <div className="pl-9 pr-3 pb-3 space-y-3">
-                          {results.map((r) => {
-                            const ms = r.scenarios.find(
-                              (s) => s.scenarioId === scenario.scenarioId
-                            );
-                            if (!ms) return null;
-                            const hasComparisonData =
-                              (ms.expectedToolCalls && ms.expectedToolCalls.length > 0) ||
-                              (ms.actualToolCalls && ms.actualToolCalls.length > 0) ||
-                              ms.shouldCallTool === false;
-                            return (
-                              <div
-                                key={r.model}
-                                className="py-2 px-3 bg-white/[0.02] rounded-lg border border-white/[0.04]"
-                              >
-                                {/* Existing score row */}
-                                <div className="flex items-center gap-3">
-                                  <ModelColorDot name={r.model} />
-                                  <span className="text-sm text-zinc-300 min-w-[140px] truncate">
-                                    {r.model}
-                                  </span>
-                                  {ms.passed ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                                  ) : (
-                                    <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                                  )}
-                                  <div className="flex-1 grid grid-cols-3 gap-3 ml-2">
-                                    <ScoreBar score={ms.toolSelectionScore} label="Select" maxScore={5} />
-                                    <ScoreBar score={ms.paramAccuracyScore} label="Params" maxScore={5} />
-                                    <ScoreBar score={ms.restraintScore} label="Restraint" maxScore={5} />
-                                  </div>
-                                  <span className="font-mono tabular-nums text-xs text-zinc-400 ml-2">
-                                    {ms.overallScore}%
-                                  </span>
-                                  {/* Flags */}
-                                  <div className="flex items-center gap-1 ml-1">
-                                    {ms.hallucinatedTool && (
-                                      <span title="Hallucinated tool">
-                                        <Bug className="w-3.5 h-3.5 text-red-400" />
-                                      </span>
-                                    )}
-                                    {ms.calledWhenShouldNot && (
-                                      <span title="Eager invocation">
-                                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                                      </span>
-                                    )}
-                                    {ms.missingRequiredParam && (
-                                      <span title="Missing required param">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                                      </span>
-                                    )}
-                                    {ms.jsonMalformed && (
-                                      <span title="Malformed JSON">
-                                        <XCircle className="w-3.5 h-3.5 text-red-400" />
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Expected vs Actual Comparison */}
-                                {hasComparisonData && (
-                                  <motion.div
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.25, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-                                  >
-                                    <ToolComparison ms={ms} />
-                                  </motion.div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </GlowCard>
+      {/* Scenario Breakdown merged into the page's Scenario Drill-Down */}
 
       {/* ── COMMON FAILURE PATTERNS ── */}
       {mergedFailures.size > 0 && (
         <GlowCard delay={0.3}>
           <div className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                Common Failure Patterns
-              </h3>
-            </div>
+            <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Common Failure Patterns</h3>
 
             <div className="space-y-4">
               {Array.from(mergedFailures.values())

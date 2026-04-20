@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical, MessageSquare } from "lucide-react";
-import { GlowCard } from "@/components/ui/glow-card";
 import { Button } from "@/components/ui/button";
 
 interface ConversationScenarioDef {
@@ -128,8 +127,8 @@ export function ConversationEditor({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
           Conversation Scenarios
         </h3>
         {!readOnly && (
@@ -148,7 +147,7 @@ export function ConversationEditor({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
           >
-            <GlowCard className="p-0 overflow-hidden" animate={false}>
+            <div className="border-b border-white/[0.05] overflow-hidden">
               {/* Scenario header — collapsed view */}
               <button
                 onClick={() =>
@@ -156,12 +155,12 @@ export function ConversationEditor({
                     expandedScenario === scenario.id ? null : scenario.id
                   )
                 }
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                className="w-full flex items-center gap-4 px-6 py-5 text-left hover:bg-white/[0.04] transition-colors apple-list-row cursor-pointer"
               >
-                <GripVertical size={14} className="text-zinc-700 flex-shrink-0" />
-                <MessageSquare size={14} className="text-violet-400 flex-shrink-0" />
+                <GripVertical size={16} className="text-zinc-700 flex-shrink-0" />
+                <MessageSquare size={16} className="text-violet-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-zinc-200 text-sm font-medium">
+                  <span className="text-white text-[17px] font-medium tracking-tight mb-1">
                     {scenario.name}
                   </span>
                 </div>
@@ -201,10 +200,10 @@ export function ConversationEditor({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 space-y-4 border-t border-white/[0.06]">
+                    <div className="p-6 space-y-6 border-t border-white/[0.05] bg-[#09090B]">
                       {/* Name */}
-                      <div className="pt-3">
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                      <div>
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           Scenario Name
                         </label>
                         <input
@@ -213,14 +212,14 @@ export function ConversationEditor({
                             updateScenario(scenario.id, { name: e.target.value })
                           }
                           disabled={readOnly}
-                          className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-blue-500/30 disabled:opacity-50"
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                           placeholder="e.g. Angry customer refund request"
                         />
                       </div>
 
                       {/* System prompt */}
                       <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           System Prompt
                         </label>
                         <textarea
@@ -232,14 +231,14 @@ export function ConversationEditor({
                           }
                           disabled={readOnly}
                           rows={3}
-                          className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50 resize-y"
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50 resize-y"
                           placeholder="You are a customer support agent for..."
                         />
                       </div>
 
                       {/* User persona */}
                       <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           User Persona
                         </label>
                         <textarea
@@ -251,15 +250,15 @@ export function ConversationEditor({
                           }
                           disabled={readOnly}
                           rows={2}
-                          className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50 resize-y"
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50 resize-y"
                           placeholder="Frustrated customer who received a damaged item..."
                         />
                       </div>
 
                       {/* Turn count & Difficulty */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-6">
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Turn Count
                           </label>
                           <input
@@ -275,12 +274,12 @@ export function ConversationEditor({
                               updateScenario(scenario.id, { turnCount: val });
                             }}
                             disabled={readOnly}
-                            className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-200 font-mono outline-none focus:border-blue-500/30 disabled:opacity-50"
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                           />
                         </div>
 
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Difficulty
                           </label>
                           <div className="flex gap-2">
@@ -292,14 +291,14 @@ export function ConversationEditor({
                                   updateScenario(scenario.id, { difficulty: d })
                                 }
                                 disabled={readOnly}
-                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${
+                                className={`flex-1 text-[14px] font-semibold capitalize py-3 rounded-xl border transition-all ${
                                   scenario.difficulty === d
                                     ? d === "easy"
                                       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                                       : d === "medium"
                                         ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
                                         : "border-red-500/30 bg-red-500/10 text-red-400"
-                                    : "border-white/[0.06] bg-white/5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10"
+                                    : "border-white/10 bg-[#121214] text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
                                 } disabled:opacity-50`}
                               >
                                 {d}
@@ -311,10 +310,10 @@ export function ConversationEditor({
 
                       {/* Simulator mode */}
                       <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           Simulator Mode
                         </label>
-                        <div className="flex gap-3">
+                        <div className="flex gap-4">
                           {(["scripted", "local"] as const).map((mode) => (
                             <label
                               key={mode}
@@ -332,12 +331,12 @@ export function ConversationEditor({
                                   })
                                 }
                                 disabled={readOnly}
-                                className="accent-blue-500"
+                                className="accent-blue-500 w-4 h-4"
                               />
                               <span
-                                className={`text-xs ${
+                                className={`text-[15px] font-medium ${
                                   scenario.simulatorMode === mode
-                                    ? "text-zinc-200"
+                                    ? "text-white"
                                     : "text-zinc-500"
                                 }`}
                               >
@@ -352,14 +351,14 @@ export function ConversationEditor({
 
                       {/* Scripted messages (shown when mode is scripted) */}
                       {scenario.simulatorMode === "scripted" && (
-                        <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <div className="pt-4 border-t border-white/[0.05]">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-4">
                             Scripted User Messages
                           </label>
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {(scenario.scriptedMessages || []).map((msg, mi) => (
-                              <div key={mi} className="flex items-start gap-2">
-                                <span className="text-zinc-700 text-xs font-mono mt-2 w-5 text-right flex-shrink-0">
+                              <div key={mi} className="flex items-start gap-4">
+                                <span className="text-zinc-500 text-[14px] font-mono mt-3 text-right flex-shrink-0">
                                   {mi + 1}.
                                 </span>
                                 <input
@@ -374,7 +373,7 @@ export function ConversationEditor({
                                     });
                                   }}
                                   disabled={readOnly}
-                                  className="flex-1 bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50"
+                                  className="flex-1 bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                                   placeholder={`User message for turn ${mi + 1}`}
                                 />
                                 {!readOnly && (
@@ -387,42 +386,44 @@ export function ConversationEditor({
                                         scriptedMessages: updated,
                                       });
                                     }}
-                                    className="text-zinc-700 hover:text-red-400 transition-colors p-1 mt-1"
+                                    className="text-zinc-600 hover:text-red-400 transition-colors bg-white/5 rounded-lg p-3 hover:bg-white/10 mt-1"
                                   >
-                                    <Trash2 size={10} />
+                                    <Trash2 size={16} />
                                   </button>
                                 )}
                               </div>
                             ))}
                             {!readOnly && (
-                              <button
-                                onClick={() =>
-                                  updateScenario(scenario.id, {
-                                    scriptedMessages: [
-                                      ...(scenario.scriptedMessages || []),
-                                      "",
-                                    ],
-                                  })
-                                }
-                                className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
-                              >
-                                + Add message
-                              </button>
+                              <div className="pt-2">
+                                <button
+                                  onClick={() =>
+                                    updateScenario(scenario.id, {
+                                      scriptedMessages: [
+                                        ...(scenario.scriptedMessages || []),
+                                        "",
+                                      ],
+                                    })
+                                  }
+                                  className="text-blue-400 text-[14px] font-semibold hover:text-blue-300 transition-colors"
+                                >
+                                  + Add message
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
                       )}
 
                       {/* Evaluation criteria */}
-                      <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-2">
+                      <div className="pt-4 border-t border-white/[0.05]">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-4">
                           Evaluation Criteria
                         </label>
-                        <div className="space-y-1.5">
+                        <div className="space-y-3">
                           {DEFAULT_CRITERIA.map((criterion) => (
                             <label
                               key={criterion}
-                              className="flex items-center gap-2 cursor-pointer group"
+                              className="flex items-center gap-3 cursor-pointer group"
                             >
                               <input
                                 type="checkbox"
@@ -433,9 +434,9 @@ export function ConversationEditor({
                                   toggleCriterion(scenario.id, criterion)
                                 }
                                 disabled={readOnly}
-                                className="rounded border-white/20 accent-blue-500"
+                                className="rounded border-white/20 accent-blue-500 w-4 h-4"
                               />
-                              <span className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                              <span className="text-[15px] font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
                                 {criterion}
                               </span>
                             </label>
@@ -451,7 +452,7 @@ export function ConversationEditor({
                             .map((criterion) => (
                               <label
                                 key={criterion}
-                                className="flex items-center gap-2 cursor-pointer group"
+                                className="flex items-center gap-3 cursor-pointer group"
                               >
                                 <input
                                   type="checkbox"
@@ -460,9 +461,9 @@ export function ConversationEditor({
                                     toggleCriterion(scenario.id, criterion)
                                   }
                                   disabled={readOnly}
-                                  className="rounded border-white/20 accent-blue-500"
+                                  className="rounded border-white/20 accent-blue-500 w-4 h-4"
                                 />
-                                <span className="text-xs text-violet-400 group-hover:text-violet-300 transition-colors">
+                                <span className="text-[15px] font-medium text-violet-400 group-hover:text-violet-300 transition-colors">
                                   {criterion}
                                 </span>
                                 {!readOnly && (
@@ -470,9 +471,9 @@ export function ConversationEditor({
                                     onClick={() =>
                                       toggleCriterion(scenario.id, criterion)
                                     }
-                                    className="text-zinc-700 hover:text-red-400 transition-colors ml-auto"
+                                    className="text-zinc-600 hover:text-red-400 transition-colors ml-auto bg-white/5 rounded-lg p-2 hover:bg-white/10"
                                   >
-                                    <Trash2 size={10} />
+                                    <Trash2 size={14} />
                                   </button>
                                 )}
                               </label>
@@ -481,7 +482,7 @@ export function ConversationEditor({
 
                         {/* Add custom criterion */}
                         {!readOnly && (
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-3 mt-4">
                             <input
                               value={customCriteriaInput[scenario.id] || ""}
                               onChange={(e) =>
@@ -495,14 +496,14 @@ export function ConversationEditor({
                                   addCustomCriterion(scenario.id);
                                 }
                               }}
-                              className="flex-1 bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1 text-xs text-zinc-300 outline-none focus:border-blue-500/30 placeholder:text-zinc-700"
-                              placeholder="Custom criterion..."
+                              className="flex-1 bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 placeholder:text-zinc-600"
+                              placeholder="Add custom criterion..."
                             />
                             <button
                               onClick={() => addCustomCriterion(scenario.id)}
-                              className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
+                              className="text-white bg-white/10 px-4 py-3 rounded-xl text-[14px] font-semibold hover:bg-white/20 transition-colors"
                             >
-                              + Add
+                              Add
                             </button>
                           </div>
                         )}
@@ -511,7 +512,7 @@ export function ConversationEditor({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </GlowCard>
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>

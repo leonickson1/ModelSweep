@@ -18,8 +18,8 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
           p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
           strong: ({ children }) => <strong className="font-semibold text-zinc-100">{children}</strong>,
           em: ({ children }) => <em className="italic text-zinc-300">{children}</em>,
-          code: ({ children, className: cls }) => {
-            const isBlock = cls?.includes("language-");
+          code: ({ children, className: cls, node }) => {
+            const isBlock = cls?.includes("language-") || String(children).includes("\n");
             if (isBlock) {
               return (
                 <pre className="my-2 p-3 bg-white/5 border border-white/[0.06] rounded-xl overflow-x-auto">

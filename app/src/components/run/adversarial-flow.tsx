@@ -193,19 +193,19 @@ export default function AdversarialFlow({
   }, [scenarios, currentScenarioIndex, modelName]);
 
   return (
-    <div className="w-full h-[500px] bg-zinc-950/50 rounded-xl border border-white/[0.06] overflow-hidden">
+    <div className="w-full h-[700px] bg-zinc-950/50 rounded-xl border border-white/[0.06] overflow-hidden relative">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
         proOptions={{ hideAttribution: true }}
-        minZoom={0.2}
-        maxZoom={1.5}
-        defaultViewport={{ x: 20, y: 20, zoom: 0.85 }}
-        nodesDraggable={false}
+        minZoom={0.15}
+        maxZoom={2}
+        defaultViewport={{ x: 20, y: 20, zoom: 0.7 }}
+        nodesDraggable
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable
         panOnDrag
         zoomOnScroll
       >

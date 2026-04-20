@@ -54,11 +54,27 @@ export interface OllamaModelDetails {
     quantization_level: string;
   };
   model_info: Record<string, unknown>;
+  /**
+   * Newer Ollama versions return a capabilities array like
+   * ["completion", "vision", "tools", "embedding"]. Older versions omit it
+   * and we fall back to family-name heuristics.
+   */
+  capabilities?: string[];
+}
+
+export interface ModelCapabilities {
+  name: string;
+  vision: boolean;
+  tools: boolean;
+  completion: boolean;
+  embedding: boolean;
+  /** Source: "api" if reported by Ollama, "heuristic" if derived from family/name, "unknown" if we couldn't check */
+  source: "api" | "heuristic" | "unknown";
 }
 
 // ─── Suite Types ────────────────────────────────────────────────────────────
 
-export type SuiteType = "standard" | "tool_calling" | "conversation" | "adversarial";
+export type SuiteType = "standard" | "tool_calling" | "conversation" | "adversarial" | "vision" | "coding" | "rag";
 
 // ─── Test Suite Types ───────────────────────────────────────────────────────
 
@@ -257,12 +273,9 @@ export interface ToolCallResult {
 // ─── Test Run Types ─────────────────────────────────────────────────────────
 
 export interface AutoScores {
-  formatCompliance: boolean;
-  lengthCompliance: boolean;
-  codeValidity: boolean | null;
-  refusalDetected: boolean;
-  repetitionScore: number;
-  languageMatch: boolean;
+  gatePass: boolean;
+  gateFlag: GateFlag | null;
+  rubricScore: number;
 }
 
 export interface JudgeScores {
@@ -420,7 +433,6 @@ export interface CloudProviderConfig {
   modelId?: string | null;
   label?: string | null;
   useForJudging: boolean;
-  useForBaseline: boolean;
   spendLimitUsd: number;
   spendUsedUsd: number;
   status: "connected" | "error" | "unchecked" | "not_set";
@@ -434,16 +446,8 @@ export type GateFlag =
   | "EMPTY"
   | "GIBBERISH"
   | "TRUNCATED"
-  | "CRASH";
-
-/** Per-dimension rubric scores (0–5 each) */
-export interface DimensionScores {
-  relevance: number;
-  depth: number;
-  coherence: number;
-  compliance: number;
-  language: number;
-}
+  | "CRASH"
+  | "ERROR";
 
 /** Hard gate check result */
 export interface GateResult {
@@ -451,24 +455,11 @@ export interface GateResult {
   flag: GateFlag | null;
 }
 
-/** Full rubric scoring result (Layer 1) */
-export interface RubricResult {
-  score: number;
-  dimensions: DimensionScores;
+/** Gate scoring result (simplified — judge handles quality) */
+export interface GateScoreResult {
+  score: number;        // 100 if all gates pass, 0 if any fail
   gate: GateResult;
   warnings: string[];
-  breakdown: {
-    [dim: string]: { raw: number; weight: number };
-  };
-  rubricResults?: RubricCheck[];
-}
-
-/** Parsed rubric check from prompt rubric field */
-export interface RubricCheck {
-  type: 'must_contain' | 'must_not_contain' | 'count_items' | 'valid_json' | 'unstructured';
-  value: string;
-  label: string;
-  passed?: boolean;
 }
 
 /** Structured judge evaluation per response (Layer 2) */

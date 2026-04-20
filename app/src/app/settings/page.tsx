@@ -65,79 +65,79 @@ function ConnectionTab() {
   };
 
   return (
-    <div className="space-y-5">
-      <GlowCard className="p-5" animate={false}>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-zinc-400 text-sm font-medium">Ollama Connection</h2>
+    <div className="space-y-8">
+      <div className="apple-glass rounded-[32px] p-8 -mt-2">
+        <div className="flex items-center gap-3 mb-6">
+          <h2 className="text-white text-[20px] font-semibold tracking-tight">Ollama Connection</h2>
           <InfoTooltip text="URL and port where your Ollama instance is running. Test to verify connectivity." />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
-            <label className="text-zinc-500 text-xs block mb-1.5">Ollama URL</label>
-            <div className="flex gap-2">
+            <label className="text-zinc-400 text-[13px] font-semibold block mb-2">Ollama URL</label>
+            <div className="flex gap-3">
               <input
                 value={ollamaUrl}
                 onChange={(e) => setOllamaUrl(e.target.value)}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-300 text-sm outline-none focus:border-white/20"
+                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-[15px] font-medium appearance-none outline-none focus:border-zinc-500 transition-colors"
                 placeholder="http://localhost:11434"
               />
-              <Button variant="secondary" size="sm" onClick={testConnection} disabled={testing}>
-                <RefreshCw size={13} className={testing ? "animate-spin" : ""} />
+              <button className="px-6 py-3 apple-glass font-medium text-[15px] rounded-xl hover:bg-white/10 transition-colors flex items-center gap-2" onClick={testConnection} disabled={testing}>
+                <RefreshCw size={16} className={testing ? "animate-spin" : ""} />
                 Test
-              </Button>
+              </button>
             </div>
-            {testResult === "ok" && <p className="flex items-center gap-1.5 mt-2 text-emerald-400 text-xs"><CheckCircle2 size={12} />Connected successfully</p>}
-            {testResult === "fail" && <p className="flex items-center gap-1.5 mt-2 text-red-400 text-xs"><AlertTriangle size={12} />Could not connect. Is Ollama running?</p>}
+            {testResult === "ok" && <p className="flex items-center gap-2 mt-3 text-emerald-400 text-[14px] font-medium tracking-tight"><CheckCircle2 size={16} />Connected successfully</p>}
+            {testResult === "fail" && <p className="flex items-center gap-2 mt-3 text-red-400 text-[14px] font-medium tracking-tight"><AlertTriangle size={16} />Could not connect. Is Ollama running?</p>}
           </div>
         </div>
-      </GlowCard>
+      </div>
 
-      <GlowCard className="p-5" animate={false}>
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-zinc-400 text-sm font-medium">Default Parameters</h2>
+      <div className="apple-glass rounded-[32px] p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <h2 className="text-white text-[20px] font-semibold tracking-tight">Default Parameters</h2>
           <InfoTooltip text="Default inference parameters used for evaluation runs. Individual runs may override these." />
         </div>
-        <div className="space-y-4">
+        <div className="space-y-6">
           {[
             { label: "Temperature", value: temperature, set: setTemperature, min: 0, max: 2, step: 0.05 },
             { label: "Top-P", value: topP, set: setTopP, min: 0, max: 1, step: 0.05 },
           ].map(({ label, value, set, min, max, step }) => (
             <div key={label}>
-              <div className="flex justify-between text-xs mb-2">
-                <span className="text-zinc-500">{label}</span>
-                <span className="text-zinc-300 font-mono">{value}</span>
+              <div className="flex justify-between text-[14px] mb-3">
+                <span className="text-zinc-400 font-semibold">{label}</span>
+                <span className="text-white font-mono font-bold tracking-wider">{value}</span>
               </div>
               <input type="range" min={min} max={max} step={step} value={value}
                 onChange={(e) => set(parseFloat(e.target.value))}
-                className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer" />
+                className="w-full h-1.5 bg-black/50 border border-white/10 rounded-full appearance-none cursor-pointer" />
             </div>
           ))}
           <div>
-            <div className="flex justify-between text-xs mb-2">
-              <span className="text-zinc-500">Max Tokens</span>
-              <span className="text-zinc-300 font-mono">{maxTokens}</span>
+            <div className="flex justify-between text-[14px] mb-3">
+              <span className="text-zinc-400 font-semibold">Max Tokens</span>
+              <span className="text-white font-mono font-bold tracking-wider">{maxTokens}</span>
             </div>
             <input type="range" min={128} max={8192} step={128} value={maxTokens}
               onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-              className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer" />
+              className="w-full h-1.5 bg-black/50 border border-white/10 rounded-full appearance-none cursor-pointer" />
           </div>
         </div>
-      </GlowCard>
+      </div>
 
-      <GlowCard className="p-5" animate={false}>
-        <h2 className="text-zinc-400 text-sm font-medium mb-2">Local LLM Judge</h2>
-        <p className="text-zinc-600 text-xs mb-3">Default Ollama model to use when LLM-as-Judge is enabled in a run.</p>
+      <div className="apple-glass rounded-[32px] p-8 mb-6">
+        <h2 className="text-white text-[20px] font-semibold tracking-tight mb-2">Local LLM Judge</h2>
+        <p className="text-zinc-400 text-[15px] font-medium mb-4">Default Ollama model to use when LLM-as-Judge is enabled in a run.</p>
         <input
           value={judgeModel}
           onChange={(e) => setJudgeModel(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-300 text-sm outline-none focus:border-white/20"
-          placeholder="e.g. llama3:8b"
+          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-[15px] font-medium appearance-none outline-none focus:border-zinc-500 transition-colors"
+          placeholder="e.g. llama3.2:3b"
         />
-      </GlowCard>
+      </div>
 
-      <Button variant="primary" size="lg" className="w-full" onClick={save}>
-        {saved ? <><CheckCircle2 size={15} />Saved</> : <><Save size={15} />Save Settings</>}
-      </Button>
+      <button className="w-full flex items-center justify-center gap-2 h-14 bg-white text-black font-semibold text-[16px] rounded-full hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-sm" onClick={save}>
+        {saved ? <><CheckCircle2 size={18} />Saved</> : <><Save size={18} />Save Settings</>}
+      </button>
     </div>
   );
 }
@@ -649,14 +649,14 @@ function CloudTab() {
   const customSlots = Math.max(customPanelCount, customProviders.length);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-zinc-300 text-sm font-medium">Cloud Model Providers</h2>
-        <p className="text-zinc-600 text-xs mt-1">
+    <div className="space-y-6">
+      <div className="mb-6">
+        <h2 className="text-white text-[20px] font-semibold tracking-tight">Cloud Model Providers</h2>
+        <p className="text-zinc-400 text-[15px] font-medium mt-1">
           Connect cloud APIs for judging and playground use
         </p>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-4">
         <ProviderPanel providerType="openai" existing={openaiProvider} onSaved={load} />
         <ProviderPanel providerType="anthropic" existing={anthropicProvider} onSaved={load} />
 
@@ -670,9 +670,9 @@ function CloudTab() {
 
         <button
           onClick={() => setCustomPanelCount((c) => c + 1)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-white/[0.08] text-zinc-500 text-xs hover:border-white/[0.15] hover:text-zinc-400 transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-6 py-4 mt-4 rounded-3xl border-2 border-dashed border-white/5 text-zinc-400 text-[15px] font-semibold hover:border-white/20 hover:text-white transition-all bg-white/[0.01] hover:bg-white/[0.03]"
         >
-          <Plus size={13} />
+          <Plus size={18} />
           Add Another Custom Endpoint
         </button>
       </div>
@@ -683,119 +683,77 @@ function CloudTab() {
 // ─── Scoring Tab ──────────────────────────────────────────────────────────────
 
 function ScoringTab() {
-  const prefs = usePreferencesStore();
-  const [wAuto, setWAuto] = useState(Math.round((prefs.weightAuto ?? 0.3) * 100));
-  const [wJudge, setWJudge] = useState(Math.round((prefs.weightJudge ?? 0.5) * 100));
-  const [wHuman, setWHuman] = useState(Math.round((prefs.weightHuman ?? 0.2) * 100));
-  const [saved, setSaved] = useState(false);
-
-  const total = wAuto + wJudge + wHuman;
-
-  const adjustWeight = (changed: "auto" | "judge" | "human", newVal: number) => {
-    const clampedVal = Math.min(100, Math.max(0, newVal));
-    if (changed === "auto") {
-      const remaining = 100 - clampedVal;
-      const ratio = (wJudge + wHuman) > 0 ? wJudge / (wJudge + wHuman) : 0.7;
-      setWAuto(clampedVal);
-      setWJudge(Math.round(remaining * ratio));
-      setWHuman(remaining - Math.round(remaining * ratio));
-    } else if (changed === "judge") {
-      const remaining = 100 - clampedVal;
-      const ratio = (wAuto + wHuman) > 0 ? wAuto / (wAuto + wHuman) : 0.6;
-      setWJudge(clampedVal);
-      setWAuto(Math.round(remaining * ratio));
-      setWHuman(remaining - Math.round(remaining * ratio));
-    } else {
-      const remaining = 100 - clampedVal;
-      const ratio = (wAuto + wJudge) > 0 ? wAuto / (wAuto + wJudge) : 0.375;
-      setWHuman(clampedVal);
-      setWAuto(Math.round(remaining * ratio));
-      setWJudge(remaining - Math.round(remaining * ratio));
-    }
-  };
-
-  const save = async () => {
-    const updates = {
-      weightAuto: wAuto / 100,
-      weightJudge: wJudge / 100,
-      weightHuman: wHuman / 100,
-    };
-    await fetch("/api/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) });
-    prefs.setPreferences(updates);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const reset = () => { setWAuto(30); setWJudge(50); setWHuman(20); };
-
-  const previewAuto = 90, previewJudge = 70, previewHuman = 80;
-  const previewScore = Math.round((previewAuto * wAuto + previewJudge * wJudge + previewHuman * wHuman) / 100);
-
-  const sliders = [
-    { label: "Auto Checks", desc: "Format, code validity, speed", value: wAuto, key: "auto" as const, color: "bg-blue-500" },
-    { label: "Judge Score", desc: "LLM evaluation of quality", value: wJudge, key: "judge" as const, color: "bg-purple-500" },
-    { label: "Your Votes", desc: "Thumbs and preferences", value: wHuman, key: "human" as const, color: "bg-emerald-500" },
-  ];
-
   return (
     <div className="space-y-5">
       <GlowCard className="p-5" animate={false}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-zinc-300 text-sm font-medium">Score Weights</h2>
-              <InfoTooltip text="Control how auto checks, LLM judge scores, and your manual votes are blended into the final composite score" />
-            </div>
-            <p className="text-zinc-600 text-xs mt-0.5">How much each layer influences the final score</p>
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-zinc-300 text-sm font-medium">How Scoring Works</h2>
+            <InfoTooltip text="ModelSweep uses a simplified two-layer scoring system: gate checks + LLM judge" />
           </div>
-          <button onClick={reset} className="text-zinc-500 text-xs hover:text-zinc-300 transition-colors">
-            Reset defaults
-          </button>
+          <p className="text-zinc-600 text-xs mt-0.5">Gate checks catch bad responses. The judge evaluates quality.</p>
         </div>
 
-        <div className="space-y-5">
-          {sliders.map(({ label, desc, value, key, color }) => (
-            <div key={key}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div>
-                  <span className="text-zinc-300 text-sm">{label}</span>
-                  <span className="text-zinc-600 text-xs ml-2">{desc}</span>
-                </div>
-                <span className="text-zinc-200 font-mono text-sm font-medium">{value}%</span>
+        <div className="space-y-4">
+          {/* Gate Checks */}
+          <div className="p-3.5 bg-white/[0.02] border border-white/[0.05] rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-zinc-300 text-sm font-medium">Gate Checks (Auto)</span>
+              <span className="text-zinc-600 text-xs ml-auto font-mono">pass / fail</span>
+            </div>
+            <p className="text-zinc-500 text-xs leading-relaxed">
+              Every response is checked for: empty (&lt;10 words), refusal patterns, repetition loops (4-gram &gt;50%), gibberish (&gt;40% non-ASCII), truncation, and errors. If any gate fails, the score is <span className="text-red-400 font-mono">0</span>.
+            </p>
+          </div>
+
+          {/* Judge */}
+          <div className="p-3.5 bg-white/[0.02] border border-white/[0.05] rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-purple-500" />
+              <span className="text-zinc-300 text-sm font-medium">LLM Judge</span>
+              <span className="text-zinc-600 text-xs ml-auto font-mono">0 – 100</span>
+            </div>
+            <p className="text-zinc-500 text-xs leading-relaxed">
+              When enabled, a judge model evaluates quality on 4 axes: accuracy, helpfulness, clarity, and instruction following. The judge score becomes the final score. Configure the judge model per-run or set a default below.
+            </p>
+          </div>
+
+          {/* Composite */}
+          <div className="p-3.5 bg-white/[0.02] border border-white/[0.05] rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-[#00FF66]" />
+              <span className="text-zinc-300 text-sm font-medium">Final Score</span>
+            </div>
+            <div className="space-y-1.5 text-xs text-zinc-500">
+              <div className="flex items-center gap-2">
+                <span className="text-red-400 font-mono w-16">0</span>
+                <span>Gate failed (empty, refused, looping, etc.)</span>
               </div>
-              <div className="relative">
-                <div className="w-full h-1.5 bg-white/10 rounded-full">
-                  <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${value}%` }} />
-                </div>
-                <input
-                  type="range" min={0} max={100} step={1} value={value}
-                  onChange={(e) => adjustWeight(key, parseInt(e.target.value))}
-                  className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
-                />
+              <div className="flex items-center gap-2">
+                <span className="text-purple-400 font-mono w-16">judge</span>
+                <span>Gates passed + judge enabled = judge score dominates</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-400 font-mono w-16">100</span>
+                <span>Gates passed, no judge = ran successfully</span>
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className={cn("mt-4 text-center text-xs font-medium", total !== 100 ? "text-red-400" : "text-zinc-600")}>
-          Total: {total}% {total !== 100 && "(must equal 100%)"}
+          </div>
         </div>
       </GlowCard>
 
       <GlowCard className="p-4" animate={false}>
-        <p className="text-zinc-500 text-xs mb-2">Preview — with these weights:</p>
-        <p className="text-zinc-500 text-xs">Auto: 90, Judge: 70, Votes: 80</p>
-        <p className="text-zinc-300 text-sm mt-1">
-          Final score: <span className="text-zinc-100 font-semibold font-mono">{previewScore}/100</span>
-        </p>
-        <p className="text-zinc-600 text-xs mt-1">
-          When a layer is unavailable, its weight is redistributed proportionally.
-        </p>
+        <div className="space-y-2">
+          <p className="text-zinc-400 text-xs font-medium">Recommendations</p>
+          <ul className="text-zinc-500 text-xs space-y-1 list-disc list-inside">
+            <li>Enable a judge model for meaningful quality scores (without one, passing gates = 100%).</li>
+            <li>For coding suites, Docker test execution is not yet integrated — scores reflect response quality only, not code correctness.</li>
+            <li>For adversarial suites, scoring is breach-based and independent of the judge.</li>
+            <li>Use 3+ models to enable round-robin peer judging (models judge each other, no cloud API needed).</li>
+          </ul>
+        </div>
       </GlowCard>
-
-      <Button variant="primary" size="lg" className="w-full" onClick={save} disabled={total !== 100}>
-        {saved ? <><CheckCircle2 size={15} />Saved</> : <><Save size={15} />Save Weights</>}
-      </Button>
     </div>
   );
 }
@@ -943,32 +901,34 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("connection");
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Settings</h1>
-        <p className="text-zinc-500 text-sm mt-1">Configure ModelSweep</p>
+    <div className="px-6 md:px-12 py-12 max-w-[1300px] mx-auto text-white">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
+        <h1 className="text-4xl font-semibold tracking-tight mb-2">Settings</h1>
+        <p className="text-zinc-400 text-[17px] font-medium mt-1">Configure ModelSweep</p>
       </motion.div>
 
-      <div className="flex gap-6">
+      <div className="flex gap-10">
         {/* Vertical tab nav */}
-        <div className="w-44 flex-shrink-0">
-          <nav className="space-y-1">
+        <div className="w-[280px] flex-shrink-0">
+          <nav className="space-y-2">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-colors text-left",
+                  "w-full flex items-center gap-3.5 px-5 py-4 rounded-[20px] text-[16px] font-semibold tracking-tight transition-all text-left",
                   activeTab === tab.id
-                    ? tab.id === "data" ? "bg-red-500/10 text-red-400" : "bg-white/10 text-zinc-200"
-                    : tab.id === "data" ? "text-red-400/60 hover:bg-red-500/5 hover:text-red-400" : "text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                    ? tab.id === "data" ? "bg-red-500/10 text-red-400 shadow-sm" : "bg-white/10 text-white shadow-sm"
+                    : tab.id === "data" ? "text-red-400/60 hover:bg-red-500/5 hover:text-red-400" : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"
                 )}
               >
                 <span className={
                   activeTab === tab.id
-                    ? tab.id === "data" ? "text-red-400" : "text-zinc-300"
-                    : tab.id === "data" ? "text-red-500/50" : "text-zinc-600"
-                }>{tab.icon}</span>
+                    ? tab.id === "data" ? "text-red-400 scale-110 transition-transform" : "text-white scale-110 transition-transform"
+                    : tab.id === "data" ? "text-red-500/50" : "text-zinc-500"
+                }>
+                  {tab.icon}
+                </span>
                 {tab.label}
               </button>
             ))}
@@ -976,7 +936,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pb-20">
           {activeTab === "connection" && <AnimatePresenceWrapper><ConnectionTab /></AnimatePresenceWrapper>}
           {activeTab === "cloud" && <AnimatePresenceWrapper><CloudTab /></AnimatePresenceWrapper>}
           {activeTab === "scoring" && <AnimatePresenceWrapper><ScoringTab /></AnimatePresenceWrapper>}

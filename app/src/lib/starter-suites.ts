@@ -1,3 +1,6 @@
+export { OWASP_LLM_TOP10_SUITE } from "./starter-owasp-suite";
+export { STARTER_CODING_SUITES } from "./starter-coding-suite";
+
 export const STARTER_SUITES = [
   {
     id: "builtin-general",

@@ -149,12 +149,7 @@ export function ConversationResults({ results }: ConversationResultsProps) {
       {/* ── CONVERSATION SCORECARD ── */}
       <GlowCard delay={0}>
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Brain className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Conversation Scorecard
-            </h3>
-          </div>
+          <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Conversation Scorecard</h3>
 
           <div className="space-y-6">
             {results.map((r, mi) => {
@@ -199,12 +194,7 @@ export function ConversationResults({ results }: ConversationResultsProps) {
       {/* ── QUALITY OVER TURNS ── */}
       <GlowCard delay={0.1}>
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Gauge className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Quality Over Turns
-            </h3>
-          </div>
+          <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Quality Over Turns</h3>
 
           {/* Inline mini-chart: one row per model showing quality dots per turn */}
           <div className="space-y-4">
@@ -262,143 +252,7 @@ export function ConversationResults({ results }: ConversationResultsProps) {
         </div>
       </GlowCard>
 
-      {/* ── FULL TRANSCRIPTS ── */}
-      <GlowCard delay={0.2}>
-        <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <MessageSquare className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Full Transcripts
-            </h3>
-          </div>
-
-          <div className="space-y-2">
-            {results.map((r) =>
-              r.scenarios.map((scenario) => {
-                const key = `${r.model}::${scenario.scenarioId}`;
-                const isExpanded = expandedTranscripts.has(key);
-                const color = getModelColor(r.model);
-
-                return (
-                  <div key={key}>
-                    <button
-                      onClick={() => toggleTranscript(key)}
-                      className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                      )}
-                      <ModelColorDot name={r.model} />
-                      <span className="text-sm text-zinc-300 font-medium truncate">
-                        {r.model}
-                      </span>
-                      <span className="text-xs text-zinc-500 truncate">
-                        {scenario.scenarioName}
-                      </span>
-                      <div className="ml-auto flex items-center gap-3">
-                        <ContextUsageBar
-                          usage={scenario.contextWindowUsed}
-                          exhausted={scenario.contextExhausted}
-                        />
-                        <SlopeIndicator slope={scenario.qualitySlope} />
-                        <span className="text-xs font-mono tabular-nums text-zinc-400">
-                          {scenario.overallScore}%
-                        </span>
-                      </div>
-                    </button>
-
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pl-9 pr-3 pb-4 space-y-2">
-                            {/* Dimension bars for this scenario */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mb-4 py-3 px-4 bg-white/[0.02] rounded-lg border border-white/[0.04]">
-                              {DIMENSION_LABELS.map(({ key, label }) => (
-                                <ScoreBar
-                                  key={key}
-                                  score={scenario.dimensions[key]}
-                                  label={label}
-                                  color={color.hex}
-                                />
-                              ))}
-                            </div>
-
-                            {/* Turns */}
-                            {scenario.turns.map((turn) => (
-                              <div
-                                key={`${turn.role}-${turn.turnNumber}`}
-                                className={cn(
-                                  "flex gap-3 py-3 px-4 rounded-lg border",
-                                  turn.role === "user"
-                                    ? "bg-white/[0.02] border-white/[0.04]"
-                                    : "bg-white/[0.04] border-white/[0.06]"
-                                )}
-                              >
-                                <div className="flex-shrink-0 mt-0.5">
-                                  {turn.role === "user" ? (
-                                    <div className="w-6 h-6 rounded-md bg-zinc-800 flex items-center justify-center">
-                                      <User className="w-3.5 h-3.5 text-zinc-400" />
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className="w-6 h-6 rounded-md flex items-center justify-center"
-                                      style={{ background: `${color.hex}20` }}
-                                    >
-                                      <Bot className="w-3.5 h-3.5" style={{ color: color.hex }} />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs text-zinc-500 uppercase tracking-wider">
-                                      {turn.role === "user" ? "User" : "Assistant"} &middot; Turn{" "}
-                                      {turn.turnNumber}
-                                    </span>
-                                    {turn.role === "assistant" && turn.qualityScore != null && (
-                                      <span
-                                        className={cn(
-                                          "text-xs font-mono tabular-nums",
-                                          turn.qualityScore >= 80
-                                            ? "text-emerald-400"
-                                            : turn.qualityScore >= 60
-                                              ? "text-amber-400"
-                                              : "text-red-400"
-                                        )}
-                                      >
-                                        Q:{turn.qualityScore}
-                                      </span>
-                                    )}
-                                    {turn.role === "assistant" && turn.tokensPerSec != null && (
-                                      <span className="text-[10px] text-zinc-600 font-mono">
-                                        {turn.tokensPerSec.toFixed(1)} tok/s
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                                    {turn.content}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </GlowCard>
+      {/* Full Transcripts merged into the page's Scenario Drill-Down */}
     </div>
   );
 }

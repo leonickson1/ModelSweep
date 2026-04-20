@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Play, Square, ChevronLeft, CheckCircle2, XCircle,
@@ -13,6 +13,61 @@ import { usePreferencesStore } from "@/store/preferences-store";
 import { useCloudProvidersStore } from "@/store/cloud-providers-store";
 import { GlowCard } from "@/components/ui/glow-card";
 import { Button } from "@/components/ui/button";
+import { Container } from "lucide-react";
+
+function DockerStatus({ onStatusChange }: { onStatusChange?: (running: boolean) => void } = {}) {
+  const [status, setStatus] = useState<"checking" | "running" | "stopped" | "starting">("checking");
+
+  useEffect(() => {
+    fetch("/api/docker").then(r => r.json()).then(d => {
+      const s = d.available ? "running" : "stopped";
+      setStatus(s);
+      onStatusChange?.(d.available);
+    }).catch(() => { setStatus("stopped"); onStatusChange?.(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startDocker = async () => {
+    setStatus("starting");
+    const res = await fetch("/api/docker", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) });
+    const data = await res.json();
+    const running = !!data.started;
+    setStatus(running ? "running" : "stopped");
+    onStatusChange?.(running);
+  };
+
+  return (
+    <div className="flex items-center justify-between py-2 transition-all duration-300">
+      <div className="flex items-center gap-4">
+        <div className={cn(
+          "w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm",
+          status === "running" ? "bg-[#32D74B]/20 text-[#32D74B]" :
+          status === "starting" ? "bg-[#FF9F0A]/20 text-[#FF9F0A]" :
+          "bg-white/5 text-zinc-500"
+        )}>
+          {status === "checking" ? <Loader2 size={18} className="animate-spin" /> : 
+           status === "starting" ? <Loader2 size={18} className="animate-spin" /> : 
+           <Container size={18} />}
+        </div>
+        <div className="flex flex-col">
+          <span className="text-[16px] font-semibold text-white tracking-tight">Docker Engine</span>
+          {status === "checking" && <span className="text-[14px] text-zinc-500">Checking availability...</span>}
+          {status === "running" && <span className="text-[14px] text-zinc-400">Running &middot; Code tests will execute</span>}
+          {status === "stopped" && <span className="text-[14px] text-red-400">Not running &middot; Code tests will skip</span>}
+          {status === "starting" && <span className="text-[14px] text-amber-400">Starting up...</span>}
+        </div>
+      </div>
+      {status === "stopped" && (
+        <button 
+          onClick={startDocker} 
+          className="px-4 py-2 rounded-full bg-white text-black hover:scale-105 active:scale-95 text-[14px] font-semibold tracking-tight transition-all shadow-sm"
+        >
+          Start Docker
+        </button>
+      )}
+    </div>
+  );
+}
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ModelColorDot } from "@/components/ui/model-badge";
 import { getModelColor } from "@/lib/model-colors";
@@ -38,6 +93,9 @@ interface Suite {
   toolDefinitions?: Array<{ id: string; name: string }>;
   conversationScenarios?: Array<{ id: string; name: string; turnCount: number }>;
   adversarialScenarios?: Array<{ id: string; name: string; attackStrategy: string; maxTurns: number }>;
+  codingScenarios?: Array<{ id: string; name: string; language: string; testCases: unknown[] }>;
+  visionScenarios?: Array<{ id: string; name: string; category: string }>;
+  ragScenarios?: Array<{ id: string; name: string; question: string }>;
 }
 
 interface ConvoTurnState {
@@ -105,6 +163,15 @@ interface ToolModelState {
   overallScore: number;
 }
 
+interface TestCaseResult {
+  passed: boolean;
+  testCaseId: string;
+  expectedOutput?: string;
+  actualOutput?: string;
+  executionTimeMs?: number;
+  error?: string;
+}
+
 interface PromptState {
   promptId: string;
   status: "pending" | "loading" | "running" | "done" | "error" | "timeout";
@@ -113,6 +180,10 @@ interface PromptState {
   score: number;
   judgeScore?: number;
   judgeWon?: boolean;
+  testResults?: TestCaseResult[];
+  dockerExecuted?: boolean;
+  dockerRunning?: boolean;
+  scenarioLanguage?: string;
 }
 
 interface ModelRunState {
@@ -134,6 +205,7 @@ interface JudgeWinner {
 export default function LiveRunPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { models } = useModelsStore();
   usePreferencesStore();
   const { providers, fetchProviders, loaded: cloudLoaded } = useCloudProvidersStore();
@@ -149,10 +221,17 @@ export default function LiveRunPage() {
   const judgeProviders = providers.filter((p) => p.useForJudging && p.selectedModel);
 
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [capabilities, setCapabilities] = useState<Record<string, { vision: boolean; tools: boolean; source: string }>>({});
+  const [dockerRunning, setDockerRunning] = useState<boolean | null>(null);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1024);
+  // Auto-increase max tokens for coding suites (models need room for full solutions)
+  const [maxTokensInitialized, setMaxTokensInitialized] = useState(false);
   const [judgeEnabled, setJudgeEnabled] = useState(false);
   const [judgeModel, setJudgeModel] = useState("");
+  const [judgeCustomPrompt, setJudgeCustomPrompt] = useState("");
+  const [peerJudgeEnabled, setPeerJudgeEnabled] = useState(false);
+  const [cloudPeerJudgeIds, setCloudPeerJudgeIds] = useState<string[]>([]);
 
   // Resolve cloud:id to display name
   const judgeModelDisplay = (() => {
@@ -174,9 +253,23 @@ export default function LiveRunPage() {
   const [judgePhase, setJudgePhase] = useState<"idle" | "loading" | "scoring" | "done" | "error">("idle");
   const [judgeWinner, setJudgeWinner] = useState<JudgeWinner | null>(null);
   const [judgeError, setJudgeError] = useState<string | null>(null);
+  const [peerPhase, setPeerPhase] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [peerProgress, setPeerProgress] = useState(0);
+  const [peerError, setPeerError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-increase max tokens for coding/conversation suites once suite loads
+  useEffect(() => {
+    if (suite && !maxTokensInitialized) {
+      setMaxTokensInitialized(true);
+      if (suite.suite_type === "coding" && maxTokens < 2048) {
+        setMaxTokens(2048);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suite]);
 
   useEffect(() => {
     fetch(`/api/suites/${id}`)
@@ -184,6 +277,107 @@ export default function LiveRunPage() {
       .then((d) => setSuite(d.suite || null))
       .finally(() => setSuiteLoading(false));
   }, [id]);
+
+  // Load saved run if ?runId= is present
+  useEffect(() => {
+    const savedRunId = searchParams.get("runId");
+    if (!savedRunId || !suite) return;
+
+    fetch(`/api/results/${savedRunId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.run?.models) return;
+        const run = data.run;
+        setRunId(savedRunId);
+        setDone(true);
+
+        // Reconstruct model states from saved results
+        const states: ModelRunState[] = run.models.map((m: Record<string, unknown>) => ({
+          name: m.model_name as string,
+          status: "done" as const,
+          prompts: ((m as Record<string, unknown>).promptResults as Array<Record<string, unknown>> || []).map((pr: Record<string, unknown>) => {
+            const autoScores = (typeof pr.auto_scores === "string" ? JSON.parse(pr.auto_scores as string) : pr.auto_scores) as Record<string, unknown> || {};
+            const js = (typeof pr.judge_scores === "string" ? JSON.parse(pr.judge_scores as string) : pr.judge_scores) as Record<string, unknown> | null;
+            return {
+              promptId: pr.prompt_id as string,
+              status: (pr.timed_out ? "timeout" : "done") as PromptState["status"],
+              response: (pr.response as string) || "",
+              tokensPerSec: (pr.tokens_per_sec as number) || 0,
+              score: (js?.score as number) ?? (autoScores?.rubricScore as number) ?? 0,
+              judgeScore: js?.score as number | undefined,
+              judgeWon: js?.won as boolean | undefined,
+              // Restore test results from auto_scores for coding suites
+              testResults: (autoScores?.testResults as TestCaseResult[] | undefined),
+              dockerExecuted: autoScores?.dockerExecuted as boolean | undefined,
+              scenarioLanguage: autoScores?.language as string | undefined,
+            };
+          }),
+          overallScore: (m.overall_score as number) || 0,
+          avgTokensPerSec: (m.avg_tokens_per_sec as number) || 0,
+        }));
+        setModelStates(states);
+        setSelectedModels(states.map(s => s.name));
+
+        // For agentic modes, populate the mode-specific state arrays so
+        // the "done" view renders correctly when loading a saved run.
+        const suiteType = run.suite_type || suite?.suite_type || "standard";
+        if (suiteType === "adversarial") {
+          setAdvModelStates(states.map(s => ({
+            name: s.name,
+            status: "done" as const,
+            scenarios: s.prompts.map(p => ({
+              scenarioId: p.promptId,
+              scenarioName: p.promptId,
+              status: "done" as const,
+              turns: [],
+              robustnessScore: p.score,
+              survived: p.score >= 80,
+              breachCount: 0,
+            })),
+            overallScore: s.overallScore,
+          })));
+        }
+        if (suiteType === "conversation") {
+          setConvoModelStates(states.map(s => ({
+            name: s.name,
+            status: "done" as const,
+            scenarios: s.prompts.map(p => ({
+              scenarioId: p.promptId,
+              scenarioName: p.promptId,
+              status: "done" as const,
+              turns: [],
+              overallScore: p.score,
+              contextExhausted: false,
+            })),
+            overallScore: s.overallScore,
+          })));
+        }
+        if (suiteType === "tool_calling") {
+          setToolModelStates(states.map(s => ({
+            name: s.name,
+            status: "done" as const,
+            scenarios: s.prompts.map(p => ({
+              scenarioId: p.promptId,
+              scenarioName: p.promptId,
+              status: "done" as const,
+              overallScore: p.score,
+              textResponse: p.response,
+              actualToolCalls: [],
+            })),
+            overallScore: s.overallScore,
+          })));
+        }
+
+        // Set judge info if available
+        if (run.judge_enabled && run.judge_model) {
+          setJudgeEnabled(true);
+          setJudgeModel(run.judge_model);
+          setJudgePhase("done");
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suite]);
 
   const toggleModel = (name: string) => {
     setSelectedModels((s) =>
@@ -194,9 +388,67 @@ export default function LiveRunPage() {
   const isToolCalling = suite?.suite_type === "tool_calling";
   const isConversation = suite?.suite_type === "conversation";
   const isAdversarial = suite?.suite_type === "adversarial";
+  const isVision = suite?.suite_type === "vision";
+  const needsVision = isVision;
+  const needsTools = isToolCalling;
+
+  // Fetch capability info for installed models once we know the list.
+  useEffect(() => {
+    if (!models || models.length === 0) return;
+    const names = models.map((m) => m.name);
+    fetch("/api/models/capabilities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ models: names }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!Array.isArray(d.capabilities)) return;
+        const next: Record<string, { vision: boolean; tools: boolean; source: string }> = {};
+        for (const c of d.capabilities) {
+          next[c.name] = { vision: !!c.vision, tools: !!c.tools, source: c.source || "unknown" };
+        }
+        setCapabilities(next);
+      })
+      .catch(() => { /* non-fatal; UI just won't show warnings */ });
+  }, [models]);
+
+  /** Returns null if the model is fine, or a short reason string if not. */
+  const modelCapabilityIssue = (name: string): string | null => {
+    const cap = capabilities[name];
+    if (!cap) return null; // Haven't loaded yet — don't block
+    if (needsVision && !cap.vision) return "no vision support";
+    if (needsTools && !cap.tools) return "no tool-calling support";
+    return null;
+  };
+
+  const incompatibleSelectedModels = selectedModels
+    .map((n) => ({ name: n, issue: modelCapabilityIssue(n) }))
+    .filter((m): m is { name: string; issue: string } => m.issue !== null);
 
   const startRun = async () => {
     if (!suite || selectedModels.length === 0) return;
+
+    if (incompatibleSelectedModels.length > 0) {
+      const list = incompatibleSelectedModels
+        .map((m) => `  • ${m.name} — ${m.issue}`)
+        .join("\n");
+      const ok = window.confirm(
+        `Some selected models may not be able to run this suite:\n\n${list}\n\nRun anyway? Scores for these models will likely be meaningless.`
+      );
+      if (!ok) return;
+    }
+
+    // Coding suites warn if Docker isn't running — code will be generated but test cases won't execute.
+    if (suite.suite_type === "coding" && dockerRunning === false) {
+      const hasTestCases = (suite.codingScenarios ?? []).some(s => Array.isArray((s as { testCases?: unknown[] }).testCases) && (s as { testCases: unknown[] }).testCases.length > 0);
+      if (hasTestCases) {
+        const ok = window.confirm(
+          "Docker is not running. Coding suites with test cases need Docker to execute the model's code.\n\nRun anyway? Code will be generated but not executed, and scenarios will be scored only by gate checks."
+        );
+        if (!ok) return;
+      }
+    }
 
     if (isToolCalling) {
       // Initialize tool calling model states
@@ -252,10 +504,17 @@ export default function LiveRunPage() {
       })));
     }
 
+    // Build prompt list from the appropriate source based on suite type
+    const promptSource = suite.suite_type === "coding"
+      ? (suite.codingScenarios ?? []).map(s => ({ id: s.id }))
+      : suite.suite_type === "vision"
+      ? (suite.visionScenarios ?? []).map(s => ({ id: s.id }))
+      : (suite.prompts ?? []).map(p => ({ id: p.id }));
+
     const initialStates: ModelRunState[] = selectedModels.map((name) => ({
       name,
       status: "pending",
-      prompts: (suite.prompts ?? []).map((p) => ({
+      prompts: promptSource.map((p) => ({
         promptId: p.id,
         status: "pending",
         response: "",
@@ -289,13 +548,25 @@ export default function LiveRunPage() {
           maxTokens,
           judgeEnabled,
           judgeModel: judgeEnabled ? judgeModel : undefined,
+          judgeCustomPrompt: judgeEnabled && judgeCustomPrompt.trim() ? judgeCustomPrompt.trim() : undefined,
+          peerJudgeEnabled,
+          cloudPeerJudgeIds: peerJudgeEnabled ? cloudPeerJudgeIds : [],
         }),
         signal: abortRef.current.signal,
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: "Run failed" }));
-        const errMsg = errData.error || `Run failed (${res.status})`;
+        let errMsg = errData.error || `Run failed (${res.status})`;
+        if (Array.isArray(errData.problems) && errData.problems.length > 0) {
+          const details = errData.problems
+            .slice(0, 5)
+            .map((p: { question?: string; name?: string; reason: string }) =>
+              `  • ${p.question || p.name || "(unnamed)"} — ${p.reason}`)
+            .join("\n");
+          const more = errData.problems.length > 5 ? `\n  …and ${errData.problems.length - 5} more` : "";
+          errMsg = `${errMsg}\n${details}${more}`;
+        }
         setRunError(errMsg);
         console.error("Run API error:", errMsg);
         return;
@@ -403,6 +674,22 @@ export default function LiveRunPage() {
         });
         break;
 
+      case "coding_executing":
+        // Show Docker execution indicator on the prompt row
+        setModelStates((s) => {
+          const idx = s.findIndex((m) => m.name === event.modelName);
+          if (idx === -1) return s;
+          const next = [...s];
+          const prompts = [...next[idx].prompts];
+          prompts[event.promptIndex as number] = {
+            ...prompts[event.promptIndex as number],
+            dockerRunning: true,
+          };
+          next[idx] = { ...next[idx], prompts };
+          return next;
+        });
+        break;
+
       case "prompt_done":
         setModelStates((s) => {
           const idx = s.findIndex((m) => m.name === event.modelName);
@@ -414,6 +701,10 @@ export default function LiveRunPage() {
             status: (event.timedOut ? "timeout" : "done") as PromptState["status"],
             tokensPerSec: event.tokensPerSec as number,
             score: event.score as number,
+            // Capture test results from coding suite Docker execution
+            testResults: (event.testResults as TestCaseResult[] | undefined) ?? prompts[event.promptIndex as number].testResults,
+            dockerExecuted: event.testResults ? true : prompts[event.promptIndex as number].dockerExecuted,
+            scenarioLanguage: (event.language as string | undefined) ?? prompts[event.promptIndex as number].scenarioLanguage,
           };
           next[idx] = { ...next[idx], prompts };
           return next;
@@ -448,7 +739,7 @@ export default function LiveRunPage() {
         break;
 
       case "judge_prompt_compared": {
-        const scores = event.scores as Record<string, number>;
+        const scores = (event.scores ?? {}) as Record<string, number>;
         const winner = event.winner as string;
         const pi = event.promptIndex as number;
         setModelStates((s) => s.map((m) => {
@@ -462,6 +753,7 @@ export default function LiveRunPage() {
           };
           return {
             ...m,
+            prompts,
             judgeStatus: "scoring",
             judgeWins: (m.judgeWins ?? 0) + (m.name === winner ? 1 : 0),
           };
@@ -481,6 +773,25 @@ export default function LiveRunPage() {
         setModelStates((s) => s.map((m) =>
           m.judgeStatus ? { ...m, judgeStatus: "done" } : m
         ));
+        break;
+
+      // ── Peer judging events ──────────────────────────────────
+      case "peer_judge_start":
+        setPeerPhase("running");
+        setPeerProgress(0);
+        break;
+
+      case "peer_judge_prompt":
+        setPeerProgress((p) => p + 1);
+        break;
+
+      case "peer_judge_done":
+        setPeerPhase("done");
+        break;
+
+      case "peer_judge_error":
+        setPeerPhase("error");
+        setPeerError(event.error as string);
         break;
 
       // ── Tool calling events ───────────────────────────────────
@@ -769,105 +1080,157 @@ export default function LiveRunPage() {
   // ── Pre-run config ────────────────────────────────────────────────────────
   if (!running && !done) {
     return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <Link href={`/suite/${id}`} className="flex items-center gap-1.5 text-zinc-500 text-xs hover:text-zinc-300 mb-6 transition-colors">
-          <ChevronLeft size={13} />
+      <div className="px-6 md:px-12 py-12 max-w-[900px] mx-auto text-white">
+        <Link href={`/suite/${id}`} className="inline-flex items-center gap-2 text-zinc-400 text-[15px] font-medium hover:text-white mb-10 transition-colors group">
+          <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
           Back to suite
         </Link>
 
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
           <div>
-            <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Run: {suite.name}</h1>
-            <p className="text-zinc-500 text-sm mt-1">
+            <h1 className="text-4xl font-semibold text-white tracking-tight leading-tight">Run: {suite.name}</h1>
+            <p className="text-zinc-400 text-[17px] font-medium mt-2">
               {isToolCalling
                 ? `${suite.toolScenarios?.length ?? 0} scenarios · ${suite.toolDefinitions?.length ?? 0} tools`
                 : isConversation
                 ? `${suite.conversationScenarios?.length ?? 0} conversation scenarios`
                 : isAdversarial
                 ? `${suite.adversarialScenarios?.length ?? 0} adversarial scenarios`
+                : suite.suite_type === "coding"
+                ? `${suite.codingScenarios?.length ?? 0} coding scenarios`
+                : suite.suite_type === "vision"
+                ? `${suite.visionScenarios?.length ?? 0} vision scenarios`
+                : suite.suite_type === "rag"
+                ? `${suite.ragScenarios?.length ?? 0} RAG scenarios`
                 : `${suite.prompts.length} prompts`
               }
             </p>
           </div>
 
           {/* Model selection */}
-          <GlowCard className="p-5" animate={false}>
-            <h2 className="text-zinc-400 text-sm font-medium mb-3">Select Models</h2>
-            {models.length === 0 ? (
-              <p className="text-zinc-600 text-sm">No models installed. Install models via Ollama first.</p>
-            ) : (
-              <div className="space-y-2">
-                {models.map((model) => (
-                  <label key={model.name} className="flex items-center gap-3 cursor-pointer group">
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                        selectedModels.includes(model.name)
-                          ? "bg-blue-500 border-blue-500"
-                          : "border-white/20 group-hover:border-white/40"
-                      )}
-                      onClick={() => toggleModel(model.name)}
-                    >
-                      {selectedModels.includes(model.name) && (
-                        <CheckCircle2 size={10} className="text-white" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-1">
-                      <ModelColorDot name={model.name} />
-                      <span className="text-zinc-300 text-sm">{model.name}</span>
-                    </div>
-                    <span className="text-zinc-600 text-xs">{formatBytes(model.size)}</span>
-                    <span className="text-zinc-700 text-xs">{model.details?.parameter_size}</span>
-                  </label>
-                ))}
+          <div className="py-4 mt-8">
+            <h2 className="text-[14px] font-bold text-zinc-500 uppercase tracking-widest mb-6">Select Models</h2>
+            {needsVision && (
+              <div className="mb-6 border border-amber-500/20 bg-amber-500/[0.05] p-4 rounded-2xl">
+                 <p className="text-amber-300/80 text-[14px] font-medium">
+                   This is a vision suite — models marked below as <span className="text-amber-400 font-semibold">no vision</span> will likely ignore images and produce meaningless scores.
+                 </p>
               </div>
             )}
-          </GlowCard>
+            {needsTools && (
+              <div className="mb-6 border border-amber-500/20 bg-amber-500/[0.05] p-4 rounded-2xl">
+                 <p className="text-amber-300/80 text-[14px] font-medium">
+                   This is a tool-calling suite — models marked as <span className="text-amber-400 font-semibold">no tools</span> will return empty tool calls and score 0.
+                 </p>
+              </div>
+            )}
+            {models.length === 0 ? (
+              <p className="text-zinc-500 text-[16px] font-medium">No models installed. Install models via Ollama first.</p>
+            ) : (
+              <div className="space-y-3">
+                {models.map((model) => {
+                  const issue = modelCapabilityIssue(model.name);
+                  return (
+                    <label key={model.name} className="flex items-center gap-4 cursor-pointer group py-2">
+                      <div
+                        className={cn(
+                          "w-[22px] h-[22px] rounded-full flex items-center justify-center transition-all shadow-sm border",
+                          selectedModels.includes(model.name)
+                            ? "bg-[#0A84FF] border-[#0A84FF]"
+                            : "border-white/20 group-hover:border-white/40 bg-white/5"
+                        )}
+                        onClick={() => toggleModel(model.name)}
+                      >
+                        {selectedModels.includes(model.name) && (
+                          <CheckCircle2 size={14} className="text-white" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <ModelColorDot name={model.name} />
+                        <span className={cn("text-[17px] font-medium truncate tracking-tight transition-colors", issue ? "text-zinc-500" : "text-zinc-200 group-hover:text-white")}>{model.name}</span>
+                        {issue && (
+                          <span
+                            title={
+                              capabilities[model.name]?.source === "heuristic"
+                                ? `${issue} (inferred from model name — not reported by Ollama)`
+                                : issue
+                            }
+                            className="text-[12px] px-2 py-0.5 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-300 whitespace-nowrap"
+                          >
+                            {issue}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-zinc-600 text-[13px] ml-4 hidden sm:block capitalize">{model.details?.family || ""}</span>
+                      {model.details?.quantization_level && (
+                        <span className="text-zinc-600 text-[12px] font-mono hidden md:block px-1.5 py-0.5 rounded bg-white/[0.04]">{model.details.quantization_level}</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            {incompatibleSelectedModels.length > 0 && (
+              <div className="mt-6 p-5 rounded-[20px] border border-amber-500/20 bg-amber-500/[0.04]">
+                <p className="text-amber-200/90 text-[14px] font-medium leading-relaxed">
+                  {incompatibleSelectedModels.length === 1
+                    ? `${incompatibleSelectedModels[0].name} likely can't complete this suite (${incompatibleSelectedModels[0].issue}).`
+                    : `${incompatibleSelectedModels.length} selected models likely can't complete this suite.`}{" "}
+                  You can still run — the app will ask you to confirm.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Parameters */}
-          <GlowCard className="p-5" animate={false}>
-            <h2 className="text-zinc-400 text-sm font-medium mb-4">Parameters</h2>
-            <div className="space-y-4">
+          <div className="py-4 mt-8 border-t border-white/[0.05] pt-12">
+            <h2 className="text-[14px] font-bold text-zinc-500 uppercase tracking-widest mb-8">Parameters</h2>
+            <div className="space-y-8">
               <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-zinc-500">Temperature</span>
-                  <span className="text-zinc-300 font-mono">{temperature}</span>
+                <div className="flex justify-between items-end mb-4">
+                  <span className="text-zinc-400 text-[15px] font-medium">Temperature</span>
+                  <span className="text-white text-[16px] font-mono bg-white/10 px-3 py-1 rounded-lg">{temperature.toFixed(2)}</span>
                 </div>
                 <input
                   type="range" min={0} max={2} step={0.05}
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                  className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#0A84FF]"
                 />
               </div>
-              <div>
-                <div className="flex justify-between text-xs mb-2">
-                  <span className="text-zinc-500">Max Tokens</span>
-                  <span className="text-zinc-300 font-mono">{maxTokens}</span>
+              <div className="pt-2">
+                <div className="flex justify-between items-end mb-4">
+                  <span className="text-zinc-400 text-[15px] font-medium">Max Tokens</span>
+                  <span className="text-white text-[16px] font-mono bg-white/10 px-3 py-1 rounded-lg">{maxTokens}</span>
                 </div>
                 <input
                   type="range" min={128} max={4096} step={128}
                   value={maxTokens}
                   onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                  className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                  className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer accent-[#0A84FF]"
                 />
+                {suite?.suite_type === "coding" && maxTokens < 2048 && (
+                  <p className="text-amber-500/80 text-[13px] mt-2">Coding suites need 2048+ tokens for complex problems (Sudoku, DP, etc.)</p>
+                )}
               </div>
+              
+              <hr className="border-white/5 my-8" />
 
               {/* Judge toggle */}
-              <div className="space-y-3 pt-1">
-                <label className="flex items-center gap-3 cursor-pointer">
+              <div className="space-y-5">
+                <label className="flex items-center gap-4 cursor-pointer group">
                   <div
                     className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                      judgeEnabled ? "bg-violet-500 border-violet-500" : "border-white/20"
+                      "w-[22px] h-[22px] rounded-full flex items-center justify-center transition-all shadow-sm border",
+                      judgeEnabled ? "bg-[#BF5AF2] border-[#BF5AF2]" : "border-white/20 bg-white/5 group-hover:border-white/40"
                     )}
                     onClick={() => setJudgeEnabled((j) => !j)}
                   >
-                    {judgeEnabled && <CheckCircle2 size={10} className="text-white" />}
+                    {judgeEnabled && <CheckCircle2 size={14} className="text-white" />}
                   </div>
-                  <Gavel size={14} className={judgeEnabled ? "text-violet-400" : "text-zinc-600"} />
-                  <span className="text-zinc-400 text-sm">LLM-as-Judge scoring</span>
-                  <span className="text-zinc-600 text-xs">(slower, higher quality)</span>
+                  <Gavel size={18} className={judgeEnabled ? "text-[#BF5AF2]" : "text-zinc-500"} />
+                  <span className="text-white text-[17px] font-medium tracking-tight">LLM-as-Judge scoring</span>
+                  <span className="text-zinc-500 text-[14px] ml-2 hidden sm:block">(slower, higher quality)</span>
                 </label>
 
                 <AnimatePresence>
@@ -879,26 +1242,26 @@ export default function LiveRunPage() {
                       transition={{ duration: 0.2 }}
                       className="overflow-hidden"
                     >
-                      <div className="ml-7 space-y-2 pt-1">
-                        <label className="text-zinc-500 text-xs block">Judge Model</label>
+                      <div className="ml-[38px] space-y-3 pt-2">
+                        <label className="text-zinc-400 text-[14px] font-medium block">Judge Model</label>
                         {models.length > 0 || judgeProviders.length > 0 ? (
                           <select
                             value={judgeModel}
                             onChange={(e) => setJudgeModel(e.target.value)}
-                            className="w-full bg-white/5 border border-violet-500/30 rounded-xl px-3 py-2 text-zinc-300 text-sm appearance-none outline-none focus:border-violet-500/60"
+                            className="w-full apple-glass border border-white/10 rounded-2xl px-5 py-4 text-white text-[16px] font-medium appearance-none outline-none focus:border-[#BF5AF2]/60 hover:bg-white/10 transition-colors cursor-pointer"
                           >
-                            <option value="">Select a judge model...</option>
+                            <option value="" className="bg-zinc-900 border-none">Select a judge model...</option>
                             {models.length > 0 && (
-                              <optgroup label="LOCAL MODELS">
+                              <optgroup label="LOCAL MODELS" className="bg-zinc-900">
                                 {models.map((m) => (
-                                  <option key={m.name} value={m.name}>{m.name}</option>
+                                  <option key={m.name} value={m.name} className="bg-zinc-900">{m.name}</option>
                                 ))}
                               </optgroup>
                             )}
                             {judgeProviders.length > 0 && (
-                              <optgroup label="CLOUD MODELS">
+                              <optgroup label="CLOUD MODELS" className="bg-zinc-900">
                                 {judgeProviders.map((p) => (
-                                  <option key={`cloud:${p.id}`} value={`cloud:${p.id}`}>
+                                  <option key={`cloud:${p.id}`} value={`cloud:${p.id}`} className="bg-zinc-900">
                                     {p.selectedModel} ({p.label})
                                   </option>
                                 ))}
@@ -910,50 +1273,130 @@ export default function LiveRunPage() {
                             value={judgeModel}
                             onChange={(e) => setJudgeModel(e.target.value)}
                             placeholder="e.g. llama3:8b"
-                            className="w-full bg-white/5 border border-violet-500/30 rounded-xl px-3 py-2 text-zinc-300 text-sm outline-none focus:border-violet-500/60 placeholder:text-zinc-600"
+                            className="w-full apple-glass border border-white/10 rounded-2xl px-5 py-4 text-white text-[16px] outline-none focus:border-[#BF5AF2]/60 placeholder:text-zinc-600 transition-colors bg-white/5"
                           />
                         )}
-                        <p className="text-zinc-600 text-xs">
+                        <p className="text-zinc-500 text-[14px] pt-1">
                           This model scores each response after all tests complete. Larger models give better judgements.
                         </p>
+                        <div className="mt-4">
+                          <label className="text-zinc-500 text-[13px] font-medium block mb-2">Custom judge instructions (optional)</label>
+                          <textarea
+                            value={judgeCustomPrompt}
+                            onChange={(e) => setJudgeCustomPrompt(e.target.value)}
+                            placeholder="e.g. Focus on code efficiency and use of docstrings. Penalize solutions that don't handle edge cases. Prefer idiomatic Python."
+                            className="w-full apple-glass border border-white/10 rounded-xl px-4 py-3 text-white text-[14px] outline-none focus:border-[#BF5AF2]/40 placeholder:text-zinc-700 transition-colors bg-white/5 resize-none h-20"
+                          />
+                        </div>
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Peer judging toggle */}
+                <label className="flex items-center gap-4 cursor-pointer pt-2 group">
+                  <div
+                    className={cn(
+                      "w-[22px] h-[22px] rounded-full flex items-center justify-center transition-all shadow-sm border",
+                      peerJudgeEnabled ? "bg-[#32D74B] border-[#32D74B]" : "border-white/20 bg-white/5 group-hover:border-white/40"
+                    )}
+                    onClick={() => setPeerJudgeEnabled((p) => !p)}
+                  >
+                    {peerJudgeEnabled && <CheckCircle2 size={14} className="text-white" />}
+                  </div>
+                  <span className="text-white text-[17px] font-medium tracking-tight">Peer judging</span>
+                  <span className="text-zinc-500 text-[14px] ml-2 hidden sm:block">(models judge each other, needs 3+)</span>
+                </label>
+                {peerJudgeEnabled && (selectedModels.length + cloudPeerJudgeIds.length) < 3 && (
+                  <p className="text-amber-500/80 text-[14px] font-medium ml-[38px] mt-2">
+                    Peer judging needs 3 total judges. Select more models or add a cloud judge below.
+                  </p>
+                )}
+
+                {/* Cloud peer judge extras */}
+                <AnimatePresence>
+                  {peerJudgeEnabled && judgeProviders.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="ml-[38px] space-y-4 pt-4 border-t border-white/5 mt-4">
+                        <label className="text-zinc-400 text-[14px] font-medium block">Extra cloud judges (don&apos;t play, only vote)</label>
+                        <div className="space-y-4">
+                          {judgeProviders.map((p) => {
+                            const id = `cloud:${p.id}`;
+                            const checked = cloudPeerJudgeIds.includes(id);
+                            return (
+                              <button
+                                type="button"
+                                key={id}
+                                onClick={() =>
+                                  setCloudPeerJudgeIds((curr) =>
+                                    curr.includes(id) ? curr.filter((x) => x !== id) : [...curr, id]
+                                  )
+                                }
+                                className="flex items-center gap-3 cursor-pointer group text-left w-full"
+                              >
+                                <div className={cn(
+                                  "w-[20px] h-[20px] rounded-full flex items-center justify-center border transition-colors",
+                                  checked ? "bg-[#32D74B] border-[#32D74B]" : "border-white/20 bg-white/5 group-hover:border-white/40"
+                                )}>
+                                  {checked && <CheckCircle2 size={12} className="text-white" />}
+                                </div>
+                                <span className={cn("text-[15px] font-medium transition-colors", checked ? "text-white" : "text-zinc-400 group-hover:text-zinc-200")}>{p.label} · {p.selectedModel}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Docker status for coding suites */}
+                {suite?.suite_type === "coding" && (
+                  <div className="pt-2">
+                    <DockerStatus onStatusChange={setDockerRunning} />
+                  </div>
+                )}
               </div>
             </div>
-          </GlowCard>
+          </div>
 
-          <Button
-            variant="primary"
-            size="lg"
-            className="w-full"
+          <button
             disabled={
               selectedModels.length === 0 ||
               (isToolCalling && !(suite.toolScenarios?.length)) ||
               (isConversation && !(suite.conversationScenarios?.length)) ||
               (isAdversarial && !(suite.adversarialScenarios?.length)) ||
-              (!isToolCalling && !isConversation && !isAdversarial && !(suite.prompts?.length))
+              (suite.suite_type === "coding" && !(suite.codingScenarios?.length)) ||
+              (!isToolCalling && !isConversation && !isAdversarial && suite.suite_type !== "coding" && suite.suite_type !== "vision" && suite.suite_type !== "rag" && !(suite.prompts?.length))
             }
             onClick={startRun}
+            className="w-full h-16 rounded-full bg-white text-black font-semibold text-[18px] tracking-tight hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
           >
-            <Play size={15} />
+            <Play size={18} className="fill-black" />
             Start Run — {selectedModels.length} model{selectedModels.length !== 1 ? "s" : ""},{" "}
             {isToolCalling ? `${suite.toolScenarios?.length ?? 0} scenarios`
               : isConversation ? `${suite.conversationScenarios?.length ?? 0} scenarios`
               : isAdversarial ? `${suite.adversarialScenarios?.length ?? 0} scenarios`
+              : suite.suite_type === "coding" ? `${suite.codingScenarios?.length ?? 0} scenarios`
+              : suite.suite_type === "vision" ? `${suite.visionScenarios?.length ?? 0} scenarios`
+              : suite.suite_type === "rag" ? `${suite.ragScenarios?.length ?? 0} scenarios`
               : `${suite.prompts.length} prompts`}
-          </Button>
+          </button>
         </motion.div>
 
         {runError && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-sm"
+            className="flex items-start gap-4 mt-8 p-5 rounded-[20px] bg-red-500/10 border border-red-500/20 shadow-lg"
           >
-            <AlertTriangle size={16} className="text-red-400 shrink-0" />
-            <span className="text-red-300">{runError}</span>
+            <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
+            <span className="text-red-300 whitespace-pre-wrap font-mono text-[14px] leading-relaxed">{runError}</span>
           </motion.div>
         )}
       </div>
@@ -1004,17 +1447,17 @@ export default function LiveRunPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 * mi }}
             >
-              <GlowCard className="p-0 overflow-hidden" animate={false}>
-                <div className="flex items-center gap-3 px-5 py-3 border-b border-white/[0.06]">
+              <GlowCard className="p-5" animate={false}>
+                <div className="flex items-center gap-3 mb-4">
                   <ModelColorDot name={model.name} />
                   <span className="text-zinc-200 text-sm font-medium flex-1">{model.name}</span>
                   <span className={cn(
-                    "text-xs px-2 py-0.5 rounded",
-                    model.status === "done" ? "text-emerald-400 bg-emerald-500/10" :
-                    model.status === "running" ? "text-blue-400 bg-blue-500/10" :
-                    model.status === "loading" ? "text-yellow-400 bg-yellow-500/10" :
-                    model.status === "skipped" ? "text-red-400 bg-red-500/10" :
-                    "text-zinc-600 bg-zinc-500/10"
+                    "text-[10px] px-1.5 py-0.5 rounded-full border",
+                    model.status === "done" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/10" :
+                    model.status === "running" ? "text-blue-400 border-blue-500/20 bg-blue-500/10" :
+                    model.status === "loading" ? "text-yellow-400 border-yellow-500/20 bg-yellow-500/10" :
+                    model.status === "skipped" ? "text-red-400 border-red-500/20 bg-red-500/10" :
+                    "text-zinc-600 border-zinc-500/20 bg-zinc-500/10"
                   )}>
                     {model.status}
                   </span>
@@ -1023,34 +1466,35 @@ export default function LiveRunPage() {
                   )}
                 </div>
 
-                <div className="divide-y divide-white/[0.04]">
+                <div className="flex flex-col gap-2 p-2">
                   {model.scenarios.map((scenario, si) => (
-                    <div key={scenario.scenarioId} className="px-5 py-2.5 flex items-center gap-3">
-                      <span className="text-zinc-700 text-xs font-mono w-4">{si + 1}</span>
-                      {scenario.status === "pending" && <Clock size={12} className="text-zinc-700" />}
-                      {scenario.status === "running" && <Loader2 size={12} className="text-blue-400 animate-spin" />}
-                      {scenario.status === "done" && <CheckCircle2 size={12} className="text-emerald-400" />}
-                      {scenario.status === "error" && <XCircle size={12} className="text-red-400" />}
+                    <div key={scenario.scenarioId} className="apple-list-row w-full flex items-center gap-4 px-5 py-4 transition-colors">
+                      {scenario.status === "pending" && <div className="w-2.5 h-2.5 rounded-full border border-white/20 flex-shrink-0" />}
+                      {scenario.status === "running" && <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse flex-shrink-0" />}
+                      {scenario.status === "done" && <CheckCircle2 size={18} className="text-[#32D74B] flex-shrink-0" />}
+                      {scenario.status === "error" && <XCircle size={18} className="text-[#FF453A] flex-shrink-0" />}
 
-                      <span className="text-zinc-400 text-sm flex-1 truncate">{scenario.scenarioName}</span>
+                      <span className="text-zinc-300 text-[15px] font-medium tracking-tight flex-1 truncate">
+                        {scenario.scenarioName}
+                      </span>
 
-                      {scenario.status === "done" && (
-                        <>
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        {scenario.status === "done" && (
                           <span className={cn(
-                            "font-mono text-xs",
-                            scenario.overallScore >= 80 ? "text-emerald-400" :
-                            scenario.overallScore >= 50 ? "text-yellow-400" :
-                            "text-red-400"
+                            "text-[16px] font-semibold tracking-tight tabular-nums",
+                            scenario.overallScore >= 80 ? "text-[#32D74B]" :
+                            scenario.overallScore >= 50 ? "text-[#FF9F0A]" :
+                            "text-[#FF453A]"
                           )}>
                             {scenario.overallScore}%
                           </span>
-                          {scenario.actualToolCalls.length > 0 && (
-                            <span className="text-blue-400/60 text-[10px]">
-                              {scenario.actualToolCalls.map(c => c.functionName).join(" → ")}
-                            </span>
-                          )}
-                        </>
-                      )}
+                        )}
+                        {scenario.status === "done" && scenario.actualToolCalls.length > 0 && (
+                          <span className="text-[#0A84FF] text-[12px] font-mono tracking-tight bg-[#0A84FF]/10 px-2 py-0.5 rounded-md">
+                            {scenario.actualToolCalls.map(c => c.functionName).join(" → ")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1116,7 +1560,7 @@ export default function LiveRunPage() {
 
                 {/* React Flow visualization */}
                 {model.scenarios.some((sc) => sc.turns.length > 0) && (
-                  <div className="mb-4 h-[350px] rounded-xl overflow-hidden border border-white/[0.06]">
+                  <div className="mb-4 h-[350px] rounded-[24px] overflow-hidden border border-white/[0.03] bg-[#0A0A0C] shadow-inner isolate relative">
                     <ConversationFlow
                       modelName={model.name}
                       currentScenarioIndex={model.scenarios.findIndex((sc) => sc.status === "running")}
@@ -1147,19 +1591,23 @@ export default function LiveRunPage() {
                   </div>
                 )}
 
-                <div className="space-y-3">
+                <div className="flex flex-col gap-2">
                   {model.scenarios.map((sc, si) => (
-                    <div key={sc.scenarioId} className="bg-white/[0.03] rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-zinc-500 text-xs">#{si + 1}</span>
-                        <span className="text-zinc-300 text-sm">{sc.scenarioName}</span>
-                        {sc.status === "running" && <Loader2 size={12} className="text-blue-400 animate-spin" />}
-                        {sc.status === "done" && <CheckCircle2 size={12} className="text-emerald-400" />}
-                        {sc.status === "error" && <XCircle size={12} className="text-red-400" />}
+                    <div key={sc.scenarioId} className="apple-list-row flex flex-col gap-3 px-5 py-4 w-full">
+                      <div className="flex items-center gap-4">
+                        {sc.status === "pending" && <div className="w-2.5 h-2.5 rounded-full border border-white/20 flex-shrink-0" />}
+                        {sc.status === "running" && <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse flex-shrink-0" />}
+                        {sc.status === "done" && <CheckCircle2 size={18} className="text-[#32D74B] flex-shrink-0" />}
+                        {sc.status === "error" && <XCircle size={18} className="text-[#FF453A] flex-shrink-0" />}
+
+                        <span className="text-zinc-300 text-[15px] font-medium tracking-tight flex-1 truncate">
+                          {sc.scenarioName}
+                        </span>
+                        
                         {sc.status === "done" && (
                           <span className={cn(
-                            "ml-auto text-xs font-mono",
-                            sc.overallScore >= 80 ? "text-emerald-400" : sc.overallScore >= 50 ? "text-yellow-400" : "text-red-400"
+                            "text-[16px] font-semibold tracking-tight tabular-nums",
+                            sc.overallScore >= 80 ? "text-[#32D74B]" : sc.overallScore >= 50 ? "text-[#FF9F0A]" : "text-[#FF453A]"
                           )}>
                             {sc.overallScore}%
                           </span>
@@ -1292,7 +1740,7 @@ export default function LiveRunPage() {
 
                 {/* React Flow visualization */}
                 {model.scenarios.some((sc) => sc.turns.length > 0) && (
-                  <div className="mb-4 h-[350px] rounded-xl overflow-hidden border border-white/[0.06]">
+                  <div className="mb-4 h-[350px] rounded-[24px] overflow-hidden border border-white/[0.03] bg-[#0A0A0C] shadow-inner isolate relative">
                     <AdversarialFlow
                       modelName={model.name}
                       currentScenarioIndex={model.scenarios.findIndex((sc) => sc.status === "running")}
@@ -1322,36 +1770,35 @@ export default function LiveRunPage() {
                   </div>
                 )}
 
-                <div className="space-y-3">
+                <div className="flex flex-col gap-2">
                   {model.scenarios.map((sc, si) => (
-                    <div key={sc.scenarioId} className="bg-white/[0.03] rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-zinc-500 text-xs">#{si + 1}</span>
-                        <span className="text-zinc-300 text-sm">{sc.scenarioName}</span>
-                        {sc.status === "running" && <Loader2 size={12} className="text-blue-400 animate-spin" />}
+                    <div key={sc.scenarioId} className="apple-list-row flex flex-col gap-3 px-5 py-4 w-full">
+                      <div className="flex items-center gap-4">
+                        {sc.status === "pending" && <div className="w-2.5 h-2.5 rounded-full border border-white/20 flex-shrink-0" />}
+                        {sc.status === "running" && <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse flex-shrink-0" />}
                         {sc.status === "done" && (
-                          sc.survived
-                            ? <CheckCircle2 size={12} className="text-emerald-400" />
-                            : <AlertTriangle size={12} className="text-red-400" />
+                          sc.survived ? <CheckCircle2 size={18} className="text-[#32D74B] flex-shrink-0" /> : <AlertTriangle size={18} className="text-[#FF453A] flex-shrink-0" />
                         )}
-                        {sc.status === "error" && <XCircle size={12} className="text-red-400" />}
+                        {sc.status === "error" && <XCircle size={18} className="text-[#FF453A] flex-shrink-0" />}
+
+                        <span className="text-zinc-300 text-[15px] font-medium tracking-tight flex-1 truncate">
+                          {sc.scenarioName}
+                        </span>
+
                         {sc.status === "done" && (
-                          <>
+                          <div className="flex items-center gap-4 flex-shrink-0">
                             <span className={cn(
-                              "ml-auto text-xs font-mono",
-                              sc.robustnessScore >= 80 ? "text-emerald-400" : sc.robustnessScore >= 50 ? "text-yellow-400" : "text-red-400"
+                              "text-[16px] font-semibold tracking-tight tabular-nums",
+                              sc.robustnessScore >= 80 ? "text-[#32D74B]" : sc.robustnessScore >= 50 ? "text-[#FF9F0A]" : "text-[#FF453A]"
                             )}>
                               {sc.robustnessScore}%
                             </span>
-                            {sc.breachCount > 0 && (
-                              <span className="text-red-400 text-[10px]">
-                                {sc.breachCount} breach{sc.breachCount !== 1 ? "es" : ""}
-                              </span>
+                            {sc.survived ? (
+                              <span className="text-[#32D74B] text-[12px] font-mono tracking-tight bg-[#32D74B]/10 px-2 py-0.5 rounded-md">Survived</span>
+                            ) : (
+                              <span className="text-[#FF453A] text-[12px] font-mono tracking-tight bg-[#FF453A]/10 px-2 py-0.5 rounded-md">{sc.breachCount} breach{sc.breachCount !== 1 ? "es" : ""}</span>
                             )}
-                            {sc.survived && (
-                              <span className="text-emerald-400 text-[10px]">Survived</span>
-                            )}
-                          </>
+                          </div>
                         )}
                       </div>
 
@@ -1407,6 +1854,7 @@ export default function LiveRunPage() {
               isToolCalling ? `${suite.toolScenarios?.length ?? 0} scenarios`
               : isConversation ? `${suite.conversationScenarios?.length ?? 0} scenarios`
               : isAdversarial ? `${suite.adversarialScenarios?.length ?? 0} scenarios`
+              : suite.suite_type === "coding" ? `${suite.codingScenarios?.length ?? 0} scenarios`
               : `${suite.prompts.length} prompts`
             }</span>
             {judgeEnabled && judgeModel && (
@@ -1447,37 +1895,29 @@ export default function LiveRunPage() {
               animate={false}
             >
               {/* Model header */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-2 h-2 rounded-full" style={{ background: color.hex }} />
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color.hex }} />
                 <span className="text-zinc-200 font-medium text-sm">{model.name}</span>
                 <span className="ml-auto flex items-center gap-3">
-                  {/* Auto score status */}
                   {model.status === "loading" && (
-                    <span className="flex items-center gap-1.5 text-yellow-400 text-xs">
+                    <span className="flex items-center gap-1.5 text-amber-400 text-xs">
                       <Loader2 size={12} className="animate-spin" />
-                      Loading model...
+                      Loading...
                     </span>
                   )}
                   {model.status === "running" && (
-                    <span className="text-xs text-zinc-500">
-                      {completedPrompts}/{model.prompts.length} prompts
+                    <span className="text-xs text-zinc-500 font-mono tabular-nums">
+                      {completedPrompts}/{model.prompts.length}
                     </span>
                   )}
                   {model.status === "done" && (
-                    <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-mono">
-                      <CheckCircle2 size={12} />
-                      {model.overallScore}% · {model.avgTokensPerSec.toFixed(1)} t/s
+                    <span className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                      <span className={cn(model.overallScore >= 80 ? "text-emerald-400" : model.overallScore >= 60 ? "text-amber-400" : "text-zinc-400")}>{model.overallScore}%</span>
+                      <span className="text-zinc-600">{model.avgTokensPerSec.toFixed(1)} t/s</span>
                     </span>
                   )}
-                  {model.status === "skipped" && (
-                    <span className="flex items-center gap-1.5 text-zinc-500 text-xs">
-                      <AlertTriangle size={12} />
-                      Skipped
-                    </span>
-                  )}
-                  {model.status === "pending" && (
-                    <span className="text-zinc-600 text-xs">Waiting...</span>
-                  )}
+                  {model.status === "skipped" && <span className="text-zinc-600 text-xs">Skipped</span>}
+                  {model.status === "pending" && <span className="text-zinc-700 text-xs">Waiting...</span>}
 
                   {/* Judge badge */}
                   {model.judgeStatus === "pending" && (
@@ -1486,75 +1926,121 @@ export default function LiveRunPage() {
                   {model.judgeStatus === "scoring" && (
                     <span className="flex items-center gap-1.5 text-violet-400 text-xs">
                       <Loader2 size={11} className="animate-spin" />
-                      {model.judgeWins ?? 0} win{model.judgeWins !== 1 ? "s" : ""} so far
+                      Judging...
                     </span>
                   )}
-                  {model.judgeStatus === "done" && (
-                    <span className={cn(
-                      "flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded-lg border",
-                      (model.judgeWins ?? 0) > 0
-                        ? "text-violet-300 bg-violet-500/10 border-violet-500/20"
-                        : "text-zinc-500 bg-white/5 border-white/10"
-                    )}>
-                      <Gavel size={10} />
-                      {model.judgeWins ?? 0} win{model.judgeWins !== 1 ? "s" : ""}
-                    </span>
-                  )}
+                  {model.judgeStatus === "done" && (() => {
+                    const judgedPrompts = model.prompts.filter(p => p.judgeScore !== undefined);
+                    const avgJudge = judgedPrompts.length > 0
+                      ? Math.round(judgedPrompts.reduce((s, p) => s + (p.judgeScore ?? 0), 0) / judgedPrompts.length)
+                      : 0;
+                    return (
+                      <span className="flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 rounded-lg border text-violet-300 bg-violet-500/10 border-violet-500/20">
+                        <Gavel size={10} />
+                        Judge: {avgJudge}/100
+                      </span>
+                    );
+                  })()}
                 </span>
               </div>
 
+              {/* Progress bar */}
+              {model.prompts.length > 0 && (
+                <div className="h-0.5 bg-white/[0.04] rounded-full mb-3 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${(completedPrompts / model.prompts.length) * 100}%`,
+                      background: model.status === "done" ? (model.overallScore >= 80 ? "#10b981" : model.overallScore >= 60 ? "#eab308" : "#ef4444") : color.hex,
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Prompt nodes */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2">
                 {model.prompts.map((p, pi) => {
                   const key = `${model.name}-${pi}`;
                   const isExpanded = expandedPrompts.has(key);
-                  const suitePrompt = suite.prompts[pi];
+                  // Get the label from the correct source based on suite type
+                  const scenarioLabel = suite.suite_type === "coding"
+                    ? suite.codingScenarios?.[pi]?.name
+                    : suite.suite_type === "vision"
+                    ? suite.visionScenarios?.[pi]?.name
+                    : suite.suite_type === "rag"
+                    ? (suite.ragScenarios?.[pi] as Record<string, unknown>)?.question as string
+                    : suite.prompts[pi]?.text;
 
                   return (
                     <div key={pi} className="w-full">
                       <button
                         onClick={() => togglePromptExpand(key)}
                         className={cn(
-                          "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors",
-                          p.status === "running" ? "bg-blue-500/10 border border-blue-500/20" :
-                            p.status === "done" ? "bg-emerald-500/5 border border-emerald-500/10" :
-                              p.status === "error" || p.status === "timeout" ? "bg-red-500/5 border border-red-500/10" :
-                                "bg-white/3 border border-white/[0.04] hover:bg-white/5"
+                          "apple-list-row w-full flex items-center gap-4 px-5 py-4 transition-colors group relative",
+                          p.status === "running" ? "bg-blue-500/10" :
+                          p.status === "done" ? "hover:bg-white/5" :
+                          p.status === "error" || p.status === "timeout" ? "bg-red-500/5 hover:bg-red-500/10" :
+                          "hover:bg-white/5"
                         )}
                       >
-                        {p.status === "pending" && <div className="w-2 h-2 rounded-full bg-zinc-700 flex-shrink-0" />}
-                        {p.status === "loading" && <Loader2 size={12} className="animate-spin text-yellow-400 flex-shrink-0" />}
-                        {p.status === "running" && <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />}
-                        {p.status === "done" && <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0" />}
-                        {(p.status === "error" || p.status === "timeout") && <XCircle size={13} className="text-red-400 flex-shrink-0" />}
+                        {p.status === "pending" && <div className="w-2.5 h-2.5 rounded-full border border-white/20 flex-shrink-0" />}
+                        {p.status === "loading" && <Loader2 size={16} className="animate-spin text-yellow-400 flex-shrink-0" />}
+                        {p.status === "running" && <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] animate-pulse flex-shrink-0" />}
+                        {p.status === "done" && <CheckCircle2 size={18} className="text-[#32D74B] flex-shrink-0" />}
+                        {(p.status === "error" || p.status === "timeout") && <XCircle size={18} className="text-[#FF453A] flex-shrink-0" />}
 
-                        <span className="text-zinc-400 text-xs flex-1 truncate">
-                          {suitePrompt?.text || `Prompt ${pi + 1}`}
+                        <span className="text-zinc-300 text-[15px] font-medium tracking-tight flex-1 truncate group-hover:text-white transition-colors">
+                          {scenarioLabel || `Scenario ${pi + 1}`}
                         </span>
 
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-4 flex-shrink-0">
+                          {/* Docker execution indicator for coding suites */}
+                          {p.dockerRunning && p.status === "running" && (
+                            <span className="flex items-center gap-1.5 text-cyan-400 text-[12px] font-medium bg-cyan-400/10 px-2 py-0.5 rounded-md">
+                              <Container size={11} className="animate-pulse" />
+                              Running...
+                            </span>
+                          )}
+                          {/* Test results summary badge for coding suites */}
+                          {p.status === "done" && p.testResults && p.testResults.length > 0 && (
+                            <span className={cn(
+                              "text-[12px] font-mono px-2 py-0.5 rounded-md",
+                              p.testResults.every(t => t.passed) ? "text-emerald-400 bg-emerald-500/10" :
+                              p.testResults.some(t => t.passed) ? "text-amber-400 bg-amber-500/10" :
+                              "text-red-400 bg-red-500/10"
+                            )}>
+                              {p.testResults.filter(t => t.passed).length}/{p.testResults.length} tests
+                            </span>
+                          )}
                           {p.status === "done" && (
-                            <span className="text-zinc-600 text-xs font-mono">{p.score}%</span>
+                            <span className={cn(
+                              "text-[16px] font-semibold tracking-tight tabular-nums",
+                              p.score >= 80 ? "text-[#32D74B]" : p.score >= 50 ? "text-[#FF9F0A]" : "text-[#FF453A]"
+                            )}>
+                              {p.score}%
+                            </span>
                           )}
                           {p.judgeScore !== undefined && (
-                            <span className={cn(
-                              "text-xs font-mono flex items-center gap-0.5",
-                              p.judgeWon ? "text-violet-300" : "text-zinc-600"
-                            )}>
-                              {p.judgeWon ? "👑" : <Gavel size={9} />}
+                            <span className="text-[14px] font-medium tracking-tight tabular-nums flex items-center gap-1 text-zinc-500">
+                              <Gavel size={12} />
                               {p.judgeScore}
                             </span>
                           )}
                           {p.status === "running" && p.response && (
-                            <span className="text-blue-400 text-xs font-mono">
+                            <span className="text-blue-400 text-[14px] font-mono tracking-tight bg-blue-400/10 px-2 py-0.5 rounded-md">
                               {p.tokensPerSec > 0 ? `${p.tokensPerSec.toFixed(1)} t/s` : "..."}
                             </span>
                           )}
                           {p.response && (
-                            <ChevronDown
-                              size={13}
-                              className={cn("text-zinc-700 transition-transform flex-shrink-0", isExpanded && "rotate-180")}
-                            />
+                            <div className={cn(
+                              "w-7 h-7 rounded-full flex items-center justify-center transition-colors shadow-sm",
+                              isExpanded ? "bg-white text-black" : "bg-white/5 text-zinc-500 group-hover:bg-white/10 group-hover:text-white"
+                            )}>
+                              <ChevronDown
+                                size={14}
+                                className={cn("transition-transform flex-shrink-0", isExpanded && "rotate-180")}
+                              />
+                            </div>
                           )}
                         </div>
                       </button>
@@ -1568,8 +2054,72 @@ export default function LiveRunPage() {
                             transition={{ duration: 0.2 }}
                             className="overflow-hidden"
                           >
-                            <div className="mx-2 mt-1 p-3 bg-white/3 rounded-xl border border-white/[0.04] max-h-48 overflow-y-auto">
-                              <MarkdownContent content={p.response} className="text-xs" />
+                            <div className="mx-4 mb-4 mt-2 space-y-3">
+                              {/* Response content */}
+                              <div className="bg-[#0A0A0C] rounded-2xl border border-white/[0.04] max-h-80 overflow-y-auto shadow-inner relative isolate">
+                                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#0A0A0C] to-transparent pointer-events-none z-10 rounded-b-2xl" />
+                                <div className="p-6">
+                                  <MarkdownContent content={p.response} className="text-[14px] leading-relaxed text-zinc-300" />
+                                </div>
+                              </div>
+
+                              {/* Test results for coding suites */}
+                              {p.testResults && p.testResults.length > 0 && (
+                                <div className="bg-[#0A0A0C] rounded-2xl border border-white/[0.04] p-4">
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <span className="text-[12px] font-semibold uppercase tracking-wider text-zinc-500">
+                                      Test Results
+                                    </span>
+                                    <span className="text-[12px] font-mono text-zinc-600">
+                                      {p.testResults.filter(t => t.passed).length}/{p.testResults.length} passed
+                                    </span>
+                                    {p.scenarioLanguage && (
+                                      <span className="text-[11px] text-cyan-500/60 font-mono">{p.scenarioLanguage}</span>
+                                    )}
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-[11px] font-mono min-w-[400px]">
+                                      <thead>
+                                        <tr className="text-zinc-600 text-left text-[10px] uppercase tracking-wider">
+                                          <th className="pb-1 pr-2 w-5"></th>
+                                          <th className="pb-1 pr-3">Expected</th>
+                                          <th className="pb-1 pr-3">Got</th>
+                                          <th className="pb-1 text-right w-14">Time</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {p.testResults.map((t, ti) => (
+                                          <tr key={ti} className="border-t border-white/[0.03]">
+                                            <td className="py-1.5 pr-2 text-center">
+                                              {t.passed
+                                                ? <span className="text-emerald-500">✓</span>
+                                                : <span className="text-red-500">✗</span>
+                                              }
+                                            </td>
+                                            <td className={cn("py-1.5 pr-3 max-w-[200px] truncate", t.passed ? "text-zinc-600" : "text-zinc-300")} title={t.expectedOutput}>
+                                              {t.expectedOutput || "—"}
+                                            </td>
+                                            <td className={cn("py-1.5 pr-3 max-w-[200px] truncate", t.passed ? "text-zinc-600" : "text-red-400")} title={t.error || t.actualOutput || ""}>
+                                              {t.error ? t.error.slice(0, 80) : (t.actualOutput || "—")}
+                                            </td>
+                                            <td className="py-1.5 text-right text-zinc-700 whitespace-nowrap">
+                                              {t.executionTimeMs != null ? `${Math.round(t.executionTimeMs)}ms` : ""}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Docker not executed notice */}
+                              {suite.suite_type === "coding" && !p.testResults?.length && p.status === "done" && (
+                                <div className="bg-[#0A0A0C] rounded-2xl border border-amber-500/10 px-4 py-3 flex items-center gap-2 text-xs text-amber-500/70">
+                                  <AlertTriangle size={13} />
+                                  <span>Docker was not available — code was not executed against test cases.</span>
+                                </div>
+                              )}
                             </div>
                           </motion.div>
                         )}
@@ -1646,6 +2196,46 @@ export default function LiveRunPage() {
                 <div>
                   <p className="text-red-300 text-sm font-medium">Judge failed</p>
                   <p className="text-red-500 text-xs mt-0.5">{judgeError}</p>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {/* Peer judging phase indicator */}
+      {peerPhase !== "idle" && (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {peerPhase === "running" && (
+              <div className="flex items-center gap-3 px-5 py-4 bg-blue-500/8 border border-blue-500/20 rounded-2xl">
+                <Loader2 size={16} className="text-blue-400 animate-spin flex-shrink-0" />
+                <div>
+                  <p className="text-blue-300 text-sm font-medium">Peer judging in progress...</p>
+                  <p className="text-blue-500 text-xs mt-0.5">Models are judging each other&apos;s responses ({peerProgress} scenarios evaluated)</p>
+                </div>
+              </div>
+            )}
+
+            {peerPhase === "done" && (
+              <div className="flex items-center gap-3 px-5 py-4 bg-emerald-500/8 border border-emerald-500/20 rounded-2xl">
+                <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                <div>
+                  <p className="text-emerald-300 text-sm font-medium">Peer judging complete</p>
+                  <p className="text-emerald-500 text-xs mt-0.5">{peerProgress} scenarios evaluated via round-robin peer comparison. Elo ratings updated.</p>
+                </div>
+              </div>
+            )}
+
+            {peerPhase === "error" && (
+              <div className="flex items-center gap-3 px-5 py-4 bg-red-500/8 border border-red-500/20 rounded-2xl">
+                <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
+                <div>
+                  <p className="text-red-300 text-sm font-medium">Peer judging failed</p>
+                  <p className="text-red-500 text-xs mt-0.5">{peerError}</p>
                 </div>
               </div>
             )}

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, ChevronDown, ChevronUp, ArrowDown, Link2 } from "lucide-react";
-import { GlowCard } from "@/components/ui/glow-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
@@ -466,8 +465,8 @@ export function ScenarioEditor({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-zinc-400 text-xs font-medium uppercase tracking-wider">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
           Scenarios
         </h3>
         {!readOnly && (
@@ -486,21 +485,21 @@ export function ScenarioEditor({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
           >
-            <GlowCard className="p-0 overflow-hidden" animate={false}>
+            <div className="border-b border-white/[0.05] overflow-hidden">
               {/* Scenario header */}
               <button
                 onClick={() =>
                   setExpanded(expanded === scenario.id ? null : scenario.id)
                 }
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                className="w-full flex items-center gap-4 px-6 py-5 text-left hover:bg-white/[0.04] transition-colors apple-list-row cursor-pointer"
               >
-                <span className="text-zinc-600 text-xs font-mono w-5">
+                <span className="text-zinc-600 text-[15px] font-mono w-6">
                   {idx + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-zinc-200 text-sm">{scenario.name}</span>
+                  <span className="text-white text-[17px] font-medium tracking-tight mb-1">{scenario.name}</span>
                   {scenario.userMessage && (
-                    <p className="text-zinc-600 text-xs truncate mt-0.5">
+                    <p className="text-zinc-400 text-[14px] truncate">
                       {scenario.userMessage}
                     </p>
                   )}
@@ -549,23 +548,23 @@ export function ScenarioEditor({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className="px-4 pb-4 space-y-3 border-t border-white/[0.06] pt-3">
+                    <div className="p-6 space-y-6 border-t border-white/[0.05] bg-[#09090B]">
                       {/* Name */}
                       <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           Scenario Name
                         </label>
                         <input
                           value={scenario.name}
                           onChange={(e) => updateScenario(scenario.id, { name: e.target.value })}
                           disabled={readOnly}
-                          className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-blue-500/30 disabled:opacity-50"
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                         />
                       </div>
 
                       {/* User message */}
                       <div>
-                        <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                           User Message
                         </label>
                         <textarea
@@ -573,15 +572,15 @@ export function ScenarioEditor({
                           onChange={(e) => updateScenario(scenario.id, { userMessage: e.target.value })}
                           disabled={readOnly}
                           rows={3}
-                          className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-2 text-sm text-zinc-300 outline-none resize-none focus:border-blue-500/30 disabled:opacity-50"
+                          className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none resize-none focus:border-white/30 disabled:opacity-50"
                           placeholder="What the user says to the model..."
                         />
                       </div>
 
                       {/* Category & Difficulty */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-6">
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Category
                           </label>
                           <select
@@ -592,7 +591,7 @@ export function ScenarioEditor({
                               })
                             }
                             disabled={readOnly}
-                            className="w-full bg-zinc-900 border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-300 outline-none"
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none"
                           >
                             {CATEGORIES.map((c) => (
                               <option key={c.value} value={c.value}>
@@ -602,10 +601,10 @@ export function ScenarioEditor({
                           </select>
                         </div>
                         <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Difficulty
                           </label>
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-2">
                             {DIFFICULTIES.map((d) => (
                               <button
                                 key={d}
@@ -615,10 +614,10 @@ export function ScenarioEditor({
                                 }
                                 disabled={readOnly}
                                 className={cn(
-                                  "flex-1 py-1 rounded text-xs capitalize border transition-colors",
+                                  "flex-1 py-3 rounded-xl text-[14px] font-semibold capitalize border transition-all",
                                   scenario.difficulty === d
                                     ? DIFF_COLORS[d]
-                                    : "text-zinc-600 bg-white/5 border-white/[0.06]"
+                                    : "text-zinc-500 bg-[#121214] border-white/10 hover:bg-white/5"
                                 )}
                               >
                                 {d}
@@ -630,10 +629,10 @@ export function ScenarioEditor({
 
                       {/* ─── Dependency Chain Editor ─── */}
                       {scenario.category === "dependency_chain" && (
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <label className="text-zinc-500 text-[10px] uppercase tracking-wider flex items-center gap-1.5">
-                              <Link2 size={10} className="text-indigo-400" />
+                        <div className="pt-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <label className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest flex items-center gap-2">
+                              <Link2 size={14} className="text-indigo-400" />
                               Dependency Chain Steps
                             </label>
                             {!readOnly && (
@@ -746,17 +745,17 @@ export function ScenarioEditor({
                       {scenario.category !== "dependency_chain" && (
                         <>
                           {/* Should call tool */}
-                          <div className="flex items-center gap-4">
-                            <label className="text-zinc-600 text-[10px] uppercase tracking-wider">
+                          <div className="flex items-center gap-6 mt-2">
+                            <label className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
                               Expected behavior
                             </label>
-                            <div className="flex gap-3">
+                            <div className="flex gap-4">
                               <label
                                 className={cn(
-                                  "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border cursor-pointer transition-colors",
+                                  "flex items-center gap-2 text-[14px] font-semibold px-4 py-3 rounded-xl border cursor-pointer transition-colors",
                                   scenario.shouldCallTool
                                     ? "text-blue-300 border-blue-500/30 bg-blue-500/10"
-                                    : "text-zinc-500 border-white/[0.06] bg-white/5"
+                                    : "text-zinc-500 border-white/10 bg-[#121214]"
                                 )}
                               >
                                 <input
@@ -770,10 +769,10 @@ export function ScenarioEditor({
                               </label>
                               <label
                                 className={cn(
-                                  "flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border cursor-pointer transition-colors",
+                                  "flex items-center gap-2 text-[14px] font-semibold px-4 py-3 rounded-xl border cursor-pointer transition-colors",
                                   !scenario.shouldCallTool
                                     ? "text-amber-300 border-amber-500/30 bg-amber-500/10"
-                                    : "text-zinc-500 border-white/[0.06] bg-white/5"
+                                    : "text-zinc-500 border-white/10 bg-[#121214]"
                                 )}
                               >
                                 <input
@@ -790,36 +789,36 @@ export function ScenarioEditor({
 
                           {/* Expected tool calls (when shouldCallTool) */}
                           {scenario.shouldCallTool && (
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="text-zinc-600 text-[10px] uppercase tracking-wider">
+                            <div className="pt-4">
+                              <div className="flex items-center justify-between mb-4">
+                                <label className="text-zinc-500 text-[13px] font-bold uppercase tracking-widest">
                                   Expected Tool Calls{" "}
                                   {scenario.expectedToolCalls.length > 1 && "(ordered sequence)"}
                                 </label>
                                 {!readOnly && (
                                   <button
                                     onClick={() => addExpectedCall(scenario.id)}
-                                    className="text-blue-400 text-xs hover:text-blue-300 transition-colors"
+                                    className="text-blue-400 text-xs font-semibold hover:text-blue-300 transition-colors"
                                   >
-                                    + Add
+                                    + Add Call
                                   </button>
                                 )}
                               </div>
 
                               {scenario.expectedToolCalls.length === 0 && (
-                                <p className="text-zinc-700 text-xs py-1">
+                                <p className="text-zinc-600 text-sm py-2">
                                   No expected calls. Add one to define what the model should do.
                                 </p>
                               )}
 
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 {scenario.expectedToolCalls.map((call, ci) => (
                                   <div
                                     key={ci}
-                                    className="bg-white/[0.03] rounded-lg p-3 space-y-2"
+                                    className="bg-[#121214] border border-white/5 rounded-xl p-4 space-y-3"
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-zinc-600 text-xs font-mono">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-zinc-500 text-[15px] font-mono font-bold">
                                         {ci + 1}.
                                       </span>
                                       <select
@@ -830,7 +829,7 @@ export function ScenarioEditor({
                                           })
                                         }
                                         disabled={readOnly}
-                                        className="bg-zinc-900 border border-white/[0.06] rounded px-2 py-1 text-xs text-blue-300 font-mono outline-none flex-1"
+                                        className="bg-[#1A1A1C] border border-white/10 rounded-lg px-3 py-2 text-[14px] font-medium text-blue-400 font-mono outline-none flex-1"
                                       >
                                         <option value="">Select tool...</option>
                                         {toolNames.map((tn) => (
@@ -844,9 +843,9 @@ export function ScenarioEditor({
                                           onClick={() =>
                                             removeExpectedCall(scenario.id, ci)
                                           }
-                                          className="text-zinc-700 hover:text-red-400 transition-colors"
+                                          className="text-zinc-600 hover:text-red-400 transition-colors bg-white/5 rounded-lg p-2 hover:bg-white/10"
                                         >
-                                          <Trash2 size={10} />
+                                          <Trash2 size={16} />
                                         </button>
                                       )}
                                     </div>
@@ -887,8 +886,8 @@ export function ScenarioEditor({
 
                       {/* Error simulation (for error_recovery category) */}
                       {scenario.category === "error_recovery" && (
-                        <div>
-                          <label className="text-zinc-600 text-[10px] uppercase tracking-wider block mb-1">
+                        <div className="pt-4 border-t border-white/[0.05]">
+                          <label className="text-zinc-500 text-[13px] font-bold tracking-widest uppercase block mb-3">
                             Simulated Error Message
                           </label>
                           <input
@@ -899,7 +898,7 @@ export function ScenarioEditor({
                               })
                             }
                             disabled={readOnly}
-                            className="w-full bg-white/5 border border-white/[0.06] rounded-lg px-3 py-1.5 text-sm text-zinc-300 outline-none focus:border-blue-500/30 disabled:opacity-50"
+                            className="w-full bg-[#121214] border border-white/10 rounded-xl px-4 py-3 text-[15px] font-medium text-white outline-none focus:border-white/30 disabled:opacity-50"
                             placeholder="Service temporarily unavailable"
                           />
                         </div>
@@ -908,7 +907,7 @@ export function ScenarioEditor({
                   </motion.div>
                 )}
               </AnimatePresence>
-            </GlowCard>
+            </div>
           </motion.div>
         ))}
       </AnimatePresence>

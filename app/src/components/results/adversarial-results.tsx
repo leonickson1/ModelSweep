@@ -13,7 +13,7 @@ import {
   Swords,
 } from "lucide-react";
 import { GlowCard } from "@/components/ui/glow-card";
-import { ScoreBadge, ScoreBar } from "@/components/ui/score-badge";
+import { ScoreBadge } from "@/components/ui/score-badge";
 import { ModelColorDot } from "@/components/ui/model-badge";
 import { getModelColor } from "@/lib/model-colors";
 import { cn } from "@/lib/utils";
@@ -142,12 +142,7 @@ export function AdversarialResults({ results }: AdversarialResultsProps) {
       {/* ── ROBUSTNESS SCORECARD ── */}
       <GlowCard delay={0}>
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Shield className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Robustness Scorecard
-            </h3>
-          </div>
+          <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Robustness Scorecard</h3>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -187,24 +182,8 @@ export function AdversarialResults({ results }: AdversarialResultsProps) {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-3">
-                      <div className="flex flex-col items-end gap-1">
-                        <ScoreBadge score={r.robustnessPct} size="sm" />
-                        <div className="w-20 h-1 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-700 ease-out"
-                            style={{
-                              width: `${r.robustnessPct}%`,
-                              background:
-                                r.robustnessPct >= 80
-                                  ? "#10b981"
-                                  : r.robustnessPct >= 60
-                                    ? "#eab308"
-                                    : "#ef4444",
-                            }}
-                          />
-                        </div>
-                      </div>
+                    <td className="py-3 px-3 text-right">
+                      <ScoreBadge score={r.robustnessPct} size="sm" />
                     </td>
                     <td className="py-3 px-3 text-right">
                       <span
@@ -241,12 +220,7 @@ export function AdversarialResults({ results }: AdversarialResultsProps) {
       {/* ── BREACH TIMELINE ── */}
       <GlowCard delay={0.1}>
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Swords className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Breach Timeline
-            </h3>
-          </div>
+          <h3 className="text-[18px] font-semibold text-white/90 tracking-tight mb-6">Breach Timeline</h3>
 
           <div className="space-y-4">
             {results.map((r, mi) => {
@@ -333,240 +307,7 @@ export function AdversarialResults({ results }: AdversarialResultsProps) {
         </div>
       </GlowCard>
 
-      {/* ── BREACH DETAILS ── */}
-      <GlowCard delay={0.2}>
-        <div className="p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Eye className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">
-              Breach Details
-            </h3>
-          </div>
-
-          <div className="space-y-2">
-            {results.map((r) =>
-              r.scenarios.map((scenario) => {
-                const scenarioKey = `${r.model}::${scenario.scenarioId}`;
-                const isScenarioExpanded = expandedScenarios.has(scenarioKey);
-                const color = getModelColor(r.model);
-
-                return (
-                  <div key={scenarioKey}>
-                    <button
-                      onClick={() => toggleScenario(scenarioKey)}
-                      className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors text-left"
-                    >
-                      {isScenarioExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                      )}
-                      <ModelColorDot name={r.model} />
-                      <span className="text-sm text-zinc-300 font-medium truncate">
-                        {r.model}
-                      </span>
-                      <span className="text-xs text-zinc-500 truncate">
-                        {scenario.scenarioName}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
-                        {scenario.attackStrategy}
-                      </span>
-                      <div className="ml-auto flex items-center gap-3">
-                        {scenario.survived ? (
-                          <div className="flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                            <span className="text-xs text-emerald-400">Survived</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                            <span className="text-xs text-amber-400">Breached</span>
-                          </div>
-                        )}
-                        <ScoreBadge score={scenario.robustnessScore} size="sm" />
-                      </div>
-                    </button>
-
-                    <AnimatePresence>
-                      {isScenarioExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pl-9 pr-3 pb-4 space-y-3">
-                            {/* Scenario metrics */}
-                            <div className="grid grid-cols-3 gap-3 py-3 px-4 bg-white/[0.02] rounded-lg border border-white/[0.04]">
-                              <ScoreBar
-                                score={Math.round((scenario.defenseQuality / 5) * 100)}
-                                label="Defense Quality"
-                                color={color.hex}
-                              />
-                              <ScoreBar
-                                score={Math.round(
-                                  (scenario.helpfulnessUnderPressure / 5) * 100
-                                )}
-                                label="Helpful Under Pressure"
-                                color={color.hex}
-                              />
-                              <ScoreBar
-                                score={Math.round(
-                                  (scenario.consistencyUnderPressure / 5) * 100
-                                )}
-                                label="Consistency"
-                                color={color.hex}
-                              />
-                            </div>
-
-                            {scenario.turnsToFirstBreach != null && (
-                              <div className="flex items-center gap-2 text-xs text-zinc-500 px-1">
-                                <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                <span>
-                                  First breach at turn{" "}
-                                  <span className="font-mono tabular-nums text-amber-400">
-                                    {scenario.turnsToFirstBreach}
-                                  </span>{" "}
-                                  of {scenario.maxTurns}
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Individual breaches */}
-                            {scenario.breaches.length === 0 ? (
-                              <div className="flex items-center gap-2 py-3 px-4 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                                <span className="text-sm text-emerald-400">
-                                  No breaches detected. Model successfully resisted all{" "}
-                                  {scenario.maxTurns} attack turns.
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="space-y-2">
-                                {scenario.breaches.map((breach) => {
-                                  const breachKey = `${scenarioKey}::${breach.id}`;
-                                  const isBreachExpanded = expandedBreaches.has(breachKey);
-                                  const sev = severityColor(breach.severity);
-
-                                  return (
-                                    <div key={breachKey}>
-                                      <button
-                                        onClick={() => toggleBreach(breachKey)}
-                                        className={cn(
-                                          "w-full flex items-center gap-3 py-2.5 px-4 rounded-lg border transition-colors text-left",
-                                          sev.bg,
-                                          sev.border,
-                                          "hover:bg-white/[0.04]"
-                                        )}
-                                      >
-                                        {isBreachExpanded ? (
-                                          <ChevronDown className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                                        ) : (
-                                          <ChevronRight className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                                        )}
-                                        <span
-                                          className={cn(
-                                            "w-2 h-2 rounded-full flex-shrink-0",
-                                            sev.dot
-                                          )}
-                                        />
-                                        <span
-                                          className={cn(
-                                            "text-xs font-medium uppercase tracking-wider",
-                                            sev.text
-                                          )}
-                                        >
-                                          {breach.severity}
-                                        </span>
-                                        <span className="text-sm text-zinc-300 truncate flex-1">
-                                          {breachTypeLabel(breach.type)}
-                                        </span>
-                                        <span className="text-xs font-mono tabular-nums text-zinc-500">
-                                          Turn {breach.turn}
-                                        </span>
-                                      </button>
-
-                                      <AnimatePresence>
-                                        {isBreachExpanded && (
-                                          <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: "auto", opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{
-                                              duration: 0.2,
-                                              ease: [0.25, 0.1, 0.25, 1],
-                                            }}
-                                            className="overflow-hidden"
-                                          >
-                                            <div className="ml-5 mt-2 mb-3 space-y-3">
-                                              <p className="text-sm text-zinc-400 leading-relaxed px-4">
-                                                {breach.description}
-                                              </p>
-
-                                              <div className="px-4">
-                                                <span className="text-[10px] text-zinc-600 uppercase tracking-widest block mb-1">
-                                                  Attack Message
-                                                </span>
-                                                <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
-                                                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                                                    {breach.attackMessage}
-                                                  </p>
-                                                </div>
-                                              </div>
-
-                                              <div className="px-4">
-                                                <span className="text-[10px] text-zinc-600 uppercase tracking-widest block mb-1">
-                                                  Model Response
-                                                </span>
-                                                <div className="p-3 bg-white/[0.02] border border-white/[0.06] rounded-lg">
-                                                  <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                                                    {breach.modelResponse}
-                                                  </p>
-                                                </div>
-                                              </div>
-
-                                              <div className="px-4">
-                                                <span className="text-[10px] text-zinc-600 uppercase tracking-widest block mb-1">
-                                                  Evidence
-                                                </span>
-                                                <div
-                                                  className={cn(
-                                                    "p-3 rounded-lg border",
-                                                    sev.bg,
-                                                    sev.border
-                                                  )}
-                                                >
-                                                  <p
-                                                    className={cn(
-                                                      "text-sm font-mono leading-relaxed",
-                                                      sev.text
-                                                    )}
-                                                  >
-                                                    {breach.evidence}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </motion.div>
-                                        )}
-                                      </AnimatePresence>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </GlowCard>
+      {/* Breach Details merged into the page's Scenario Drill-Down */}
     </div>
   );
 }

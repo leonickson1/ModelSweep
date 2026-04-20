@@ -2,6 +2,21 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { UserPreferences } from "@/types";
+// Encryption removed — local-only app, DB is on user's machine, encryption
+// just breaks things when .seed file changes or hostname changes.
+
+/** Our ciphertext format is `iv:tag:ciphertext` where each part is hex. */
+const CIPHERTEXT_RE = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/i;
+
+function isLikelyEncrypted(v: string | null | undefined): boolean {
+  return !!v && CIPHERTEXT_RE.test(v);
+}
+
+/** Pass through API key as-is (no encryption). */
+function safeDecrypt(v: string | null | undefined): string {
+  if (!v) return "";
+  return v;
+}
 
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DB_DIR, "modelpilot.db");
@@ -21,6 +36,8 @@ export function getDb(): Database.Database {
 
   initSchema(_db);
   seedStarterSuites(_db);
+  migrateCloudProviderSpendColumns(_db);
+  migrateCloudProviderKeys(_db);
 
   return _db;
 }
@@ -34,6 +51,12 @@ function initSchema(db: Database.Database) {
       created_at TEXT NOT NULL,
       last_run_at TEXT,
       is_built_in INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Track deleted built-in suites so they don't get re-seeded
+    CREATE TABLE IF NOT EXISTS deleted_builtins (
+      suite_id TEXT PRIMARY KEY,
+      deleted_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS prompts (
@@ -129,6 +152,9 @@ function initSchema(db: Database.Database) {
       selected_model TEXT,
       use_for_judging INTEGER NOT NULL DEFAULT 1,
       use_for_playground INTEGER NOT NULL DEFAULT 1,
+      spend_limit_usd REAL NOT NULL DEFAULT 5.0,
+      spend_used_usd REAL NOT NULL DEFAULT 0.0,
+      spend_month TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -184,9 +210,22 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_model_results_run_id ON model_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_prompt_results_run_id ON prompt_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_prompt_results_model_name ON prompt_results(model_name);
+    CREATE TABLE IF NOT EXISTS peer_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
+      prompt_id TEXT NOT NULL,
+      model_a TEXT NOT NULL,
+      model_b TEXT NOT NULL,
+      judge TEXT NOT NULL,
+      vote TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_elo_matches_run_id ON elo_matches(run_id);
     CREATE INDEX IF NOT EXISTS idx_prompt_dimensions_prid ON prompt_dimension_scores(prompt_result_id);
     CREATE INDEX IF NOT EXISTS idx_judge_evals_prid ON judge_evaluations(prompt_result_id);
+    CREATE INDEX IF NOT EXISTS idx_peer_votes_run_id ON peer_votes(run_id);
   `);
 
   // ── Agentic evaluation tables ──
@@ -317,6 +356,106 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_adv_scenarios_suite ON adversarial_scenarios(suite_id);
     CREATE INDEX IF NOT EXISTS idx_adv_results_run ON adversarial_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_adv_results_model ON adversarial_results(model_result_id);
+
+    -- ── Vision Scenarios ──
+    CREATE TABLE IF NOT EXISTS vision_scenarios (
+      id TEXT PRIMARY KEY,
+      suite_id TEXT NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      image_data TEXT NOT NULL,
+      image_mime TEXT NOT NULL DEFAULT 'image/png',
+      question TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'description',
+      expected_answer TEXT,
+      rubric TEXT NOT NULL DEFAULT '',
+      difficulty TEXT NOT NULL DEFAULT 'medium',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vision_scenarios_suite ON vision_scenarios(suite_id);
+
+    -- ── Coding Scenarios ──
+    CREATE TABLE IF NOT EXISTS coding_scenarios (
+      id TEXT PRIMARY KEY,
+      suite_id TEXT NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      language TEXT NOT NULL DEFAULT 'python',
+      function_signature TEXT NOT NULL DEFAULT '',
+      test_cases TEXT NOT NULL DEFAULT '[]',
+      setup_code TEXT,
+      difficulty TEXT NOT NULL DEFAULT 'medium',
+      time_limit_ms INTEGER NOT NULL DEFAULT 30000,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_coding_scenarios_suite ON coding_scenarios(suite_id);
+
+    -- ── RAG Documents & Scenarios ──
+    CREATE TABLE IF NOT EXISTS rag_documents (
+      id TEXT PRIMARY KEY,
+      suite_id TEXT NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rag_chunks (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES rag_documents(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT '',
+      token_count INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS rag_scenarios (
+      id TEXT PRIMARY KEY,
+      suite_id TEXT NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
+      document_id TEXT NOT NULL REFERENCES rag_documents(id),
+      question TEXT NOT NULL,
+      ground_truth_answer TEXT NOT NULL DEFAULT '',
+      relevant_chunk_ids TEXT NOT NULL DEFAULT '[]',
+      distractor_chunk_ids TEXT NOT NULL DEFAULT '[]',
+      answer_not_in_document INTEGER NOT NULL DEFAULT 0,
+      difficulty TEXT NOT NULL DEFAULT 'medium',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rag_docs_suite ON rag_documents(suite_id);
+    CREATE INDEX IF NOT EXISTS idx_rag_chunks_doc ON rag_chunks(document_id);
+    CREATE INDEX IF NOT EXISTS idx_rag_scenarios_suite ON rag_scenarios(suite_id);
+
+    -- ── MCP Servers ──
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL DEFAULT 'stdio',
+      command TEXT,
+      args TEXT NOT NULL DEFAULT '[]',
+      url TEXT,
+      env TEXT NOT NULL DEFAULT '{}',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
+
+    -- ── Peer Judge Results ──
+    CREATE TABLE IF NOT EXISTS peer_judge_results (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE CASCADE,
+      prompt_id TEXT NOT NULL,
+      model_a TEXT NOT NULL,
+      model_b TEXT NOT NULL,
+      winner TEXT NOT NULL,
+      votes TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_peer_judge_run ON peer_judge_results(run_id);
   `);
 
   // ── v2 schema migrations (add columns if missing) ──
@@ -392,13 +531,22 @@ function initSchema(db: Database.Database) {
   }
 }
 
-function seedStarterSuites(db: Database.Database) {
+function seedStarterSuites(db: Database.Database, opts: { force?: boolean } = {}) {
+  const force = !!opts.force;
   const count = (db.prepare("SELECT COUNT(*) as c FROM test_suites WHERE is_built_in = 1").get() as { c: number }).c;
 
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { STARTER_SUITES, STARTER_TOOL_SUITES, STARTER_CONVERSATION_SUITES, STARTER_ADVERSARIAL_SUITES } = require("./starter-suites");
+  // Check if a built-in suite was deleted by the user — don't re-seed it.
+  // Force mode bypasses this AFTER the caller has cleared deleted_builtins.
+  const wasDeleted = (suiteId: string): boolean => {
+    if (force) return false;
+    const row = db.prepare("SELECT 1 FROM deleted_builtins WHERE suite_id = ?").get(suiteId);
+    return !!row;
+  };
 
-  if (count === 0) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { STARTER_SUITES, STARTER_TOOL_SUITES, STARTER_CONVERSATION_SUITES, STARTER_ADVERSARIAL_SUITES, OWASP_LLM_TOP10_SUITE, STARTER_CODING_SUITES } = require("./starter-suites");
+
+  if (count === 0 || force) {
     const insertSuite = db.prepare(`
       INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
       VALUES (?, ?, ?, ?, ?, 1)
@@ -410,6 +558,7 @@ function seedStarterSuites(db: Database.Database) {
 
     const seedAll = db.transaction(() => {
       for (const suite of STARTER_SUITES) {
+        if (wasDeleted(suite.id)) continue;
         insertSuite.run(suite.id, suite.name, suite.description, "standard", new Date().toISOString());
         suite.prompts.forEach((p: Record<string, unknown>, i: number) => {
           insertPrompt.run(
@@ -429,7 +578,7 @@ function seedStarterSuites(db: Database.Database) {
     "SELECT COUNT(*) as c FROM test_suites WHERE id = 'builtin-tool-calling'"
   ).get() as { c: number }).c;
 
-  if (toolSuiteExists === 0 && STARTER_TOOL_SUITES) {
+  if ((toolSuiteExists === 0 || force) && STARTER_TOOL_SUITES) {
     const insertSuite = db.prepare(`
       INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
       VALUES (?, ?, ?, ?, ?, 1)
@@ -445,6 +594,7 @@ function seedStarterSuites(db: Database.Database) {
 
     const seedTools = db.transaction(() => {
       for (const suite of STARTER_TOOL_SUITES) {
+        if (wasDeleted(suite.id)) continue;
         insertSuite.run(suite.id, suite.name, suite.description, suite.suiteType, new Date().toISOString());
         suite.toolDefinitions.forEach((t: Record<string, unknown>, i: number) => {
           insertToolDef.run(
@@ -470,7 +620,7 @@ function seedStarterSuites(db: Database.Database) {
     "SELECT COUNT(*) as c FROM test_suites WHERE id = 'builtin-conversation'"
   ).get() as { c: number }).c;
 
-  if (convoSuiteExists === 0 && STARTER_CONVERSATION_SUITES) {
+  if ((convoSuiteExists === 0 || force) && STARTER_CONVERSATION_SUITES) {
     const insertSuite = db.prepare(`
       INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
       VALUES (?, ?, ?, ?, ?, 1)
@@ -482,6 +632,7 @@ function seedStarterSuites(db: Database.Database) {
 
     const seedConvo = db.transaction(() => {
       for (const suite of STARTER_CONVERSATION_SUITES) {
+        if (wasDeleted(suite.id)) continue;
         insertSuite.run(suite.id, suite.name, suite.description, suite.suiteType, new Date().toISOString());
         suite.conversationScenarios.forEach((s: Record<string, unknown>, i: number) => {
           insertConvoScenario.run(
@@ -503,7 +654,7 @@ function seedStarterSuites(db: Database.Database) {
     "SELECT COUNT(*) as c FROM test_suites WHERE id = 'builtin-adversarial'"
   ).get() as { c: number }).c;
 
-  if (advSuiteExists === 0 && STARTER_ADVERSARIAL_SUITES) {
+  if ((advSuiteExists === 0 || force) && STARTER_ADVERSARIAL_SUITES) {
     const insertSuite = db.prepare(`
       INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
       VALUES (?, ?, ?, ?, ?, 1)
@@ -515,6 +666,7 @@ function seedStarterSuites(db: Database.Database) {
 
     const seedAdv = db.transaction(() => {
       for (const suite of STARTER_ADVERSARIAL_SUITES) {
+        if (wasDeleted(suite.id)) continue;
         insertSuite.run(suite.id, suite.name, suite.description, suite.suiteType, new Date().toISOString());
         suite.adversarialScenarios.forEach((s: Record<string, unknown>, i: number) => {
           insertAdvScenario.run(
@@ -529,6 +681,64 @@ function seedStarterSuites(db: Database.Database) {
 
     seedAdv();
   }
+
+  // ── OWASP LLM Top 10 Suite ──
+  const owaspExists = (db.prepare("SELECT COUNT(*) as c FROM test_suites WHERE id = 'builtin-owasp-llm-top10'").get() as { c: number }).c;
+  if ((owaspExists === 0 || force) && OWASP_LLM_TOP10_SUITE && !wasDeleted('builtin-owasp-llm-top10')) {
+    const insertSuiteOwasp = db.prepare(`
+      INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `);
+    const insertAdvScenarioOwasp = db.prepare(`
+      INSERT OR IGNORE INTO adversarial_scenarios (id, suite_id, name, system_prompt, attack_strategy, max_turns, attack_intensity, failure_conditions, difficulty, attacker_mode, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const seedOwasp = db.transaction(() => {
+      const suite = OWASP_LLM_TOP10_SUITE;
+      insertSuiteOwasp.run(suite.id, suite.name, suite.description, suite.suiteType, new Date().toISOString());
+      suite.adversarialScenarios.forEach((s: Record<string, unknown>, i: number) => {
+        insertAdvScenarioOwasp.run(
+          s.id, suite.id, s.name, s.systemPrompt, s.attackStrategy,
+          s.maxTurns, s.attackIntensity,
+          JSON.stringify(s.failureConditions || []),
+          s.difficulty, s.attackerMode, i, new Date().toISOString()
+        );
+      });
+    });
+
+    seedOwasp();
+  }
+
+  // ── Coding Sandbox Starter Suite ──
+  const codingSuiteExists = (db.prepare("SELECT COUNT(*) as c FROM test_suites WHERE id = 'builtin-coding-sandbox'").get() as { c: number }).c;
+  if ((codingSuiteExists === 0 || force) && STARTER_CODING_SUITES && !wasDeleted('builtin-coding-sandbox')) {
+    const insertSuiteCoding = db.prepare(`
+      INSERT OR IGNORE INTO test_suites (id, name, description, suite_type, created_at, is_built_in)
+      VALUES (?, ?, ?, ?, ?, 1)
+    `);
+    const insertCodingScenario = db.prepare(`
+      INSERT OR IGNORE INTO coding_scenarios (id, suite_id, name, description, language, function_signature, test_cases, difficulty, time_limit_ms, sort_order, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const seedCoding = db.transaction(() => {
+      for (const suite of STARTER_CODING_SUITES) {
+        if (wasDeleted(suite.id)) continue;
+        insertSuiteCoding.run(suite.id, suite.name, suite.description, suite.suiteType, new Date().toISOString());
+        suite.codingScenarios.forEach((s: Record<string, unknown>, i: number) => {
+          insertCodingScenario.run(
+            s.id, suite.id, s.name, s.description,
+            s.language, s.functionSignature,
+            JSON.stringify(s.testCases || []),
+            s.difficulty, s.timeLimitMs, i, new Date().toISOString()
+          );
+        });
+      }
+    });
+
+    seedCoding();
+  }
 }
 
 // ─── Suite Queries ───────────────────────────────────────────────────────────
@@ -540,6 +750,9 @@ export function getAllSuites(db: Database.Database) {
         WHEN 'tool_calling' THEN (SELECT COUNT(*) FROM tool_scenarios WHERE suite_id = s.id)
         WHEN 'conversation' THEN (SELECT COUNT(*) FROM conversation_scenarios WHERE suite_id = s.id)
         WHEN 'adversarial' THEN (SELECT COUNT(*) FROM adversarial_scenarios WHERE suite_id = s.id)
+        WHEN 'coding' THEN (SELECT COUNT(*) FROM coding_scenarios WHERE suite_id = s.id)
+        WHEN 'vision' THEN (SELECT COUNT(*) FROM vision_scenarios WHERE suite_id = s.id)
+        WHEN 'rag' THEN (SELECT COUNT(*) FROM rag_scenarios WHERE suite_id = s.id)
         ELSE (SELECT COUNT(*) FROM prompts WHERE suite_id = s.id)
       END as prompt_count
     FROM test_suites s
@@ -555,6 +768,10 @@ export function getSuiteById(db: Database.Database, id: string) {
   const toolScenarios = getToolScenarios(db, id);
   const convoScenarios = getConversationScenarios(db, id);
   const advScenarios = getAdversarialScenarios(db, id);
+  const codingScenarios = getCodingScenarios(db, id);
+  const visionScenarios = getVisionScenarios(db, id);
+  const ragScenarios = getRagScenarios(db, id);
+  const ragDocuments = getRagDocuments(db, id);
   return {
     ...suite,
     prompts: prompts.map(deserializePrompt),
@@ -601,6 +818,44 @@ export function getSuiteById(db: Database.Database, id: string) {
       attackerMode: a.attacker_mode,
       order: a.sort_order,
     })),
+    codingScenarios: codingScenarios.map(c => ({
+      ...c,
+      suiteId: c.suite_id,
+      functionSignature: c.function_signature,
+      testCases: JSON.parse(c.test_cases || "[]"),
+      setupCode: c.setup_code,
+      timeLimitMs: c.time_limit_ms,
+      order: c.sort_order,
+    })),
+    visionScenarios: visionScenarios.map(v => ({
+      ...v,
+      suiteId: v.suite_id,
+      imageData: v.image_data,
+      imageMime: v.image_mime,
+      expectedAnswer: v.expected_answer,
+      order: v.sort_order,
+    })),
+    ragScenarios: ragScenarios.map(r => ({
+      ...r,
+      suiteId: r.suite_id,
+      documentId: r.document_id,
+      groundTruthAnswer: r.ground_truth_answer,
+      relevantChunkIds: JSON.parse(r.relevant_chunk_ids || "[]"),
+      distractorChunkIds: JSON.parse(r.distractor_chunk_ids || "[]"),
+      answerNotInDocument: r.answer_not_in_document === 1,
+      order: r.sort_order,
+    })),
+    ragDocuments: ragDocuments.map(d => ({
+      ...d,
+      suiteId: d.suite_id,
+      mimeType: d.mime_type,
+      chunks: getRagChunks(db, d.id).map(c => ({
+        ...c,
+        documentId: c.document_id,
+        tokenCount: c.token_count,
+        order: c.sort_order,
+      })),
+    })),
   };
 }
 
@@ -627,7 +882,30 @@ export function updateSuite(
 }
 
 export function deleteSuite(db: Database.Database, id: string) {
-  db.prepare("DELETE FROM test_suites WHERE id = ? AND is_built_in = 0").run(id);
+  // Record built-in deletions so they don't get re-seeded
+  const suite = db.prepare("SELECT is_built_in FROM test_suites WHERE id = ?").get(id) as { is_built_in: number } | undefined;
+  if (suite?.is_built_in === 1) {
+    db.prepare("INSERT OR REPLACE INTO deleted_builtins (suite_id, deleted_at) VALUES (?, ?)").run(id, new Date().toISOString());
+  }
+  // Delete all runs referencing this suite first (FK constraint)
+  const runs = db.prepare("SELECT id FROM test_runs WHERE suite_id = ?").all(id) as Array<{ id: string }>;
+  for (const run of runs) {
+    deleteRun(db, run.id);
+  }
+  db.prepare("DELETE FROM test_suites WHERE id = ?").run(id);
+}
+
+/**
+ * Restore all built-in starter suites (including any the user had previously
+ * deleted). Clears the deleted_builtins tombstone table and re-seeds. Safe
+ * to call repeatedly — existing suites are preserved via INSERT OR IGNORE.
+ */
+export function restoreBuiltinSuites(db: Database.Database): { beforeCount: number; afterCount: number; restored: number } {
+  const beforeCount = (db.prepare("SELECT COUNT(*) as c FROM test_suites WHERE is_built_in = 1").get() as { c: number }).c;
+  db.prepare("DELETE FROM deleted_builtins").run();
+  seedStarterSuites(db, { force: true });
+  const afterCount = (db.prepare("SELECT COUNT(*) as c FROM test_suites WHERE is_built_in = 1").get() as { c: number }).c;
+  return { beforeCount, afterCount, restored: Math.max(0, afterCount - beforeCount) };
 }
 
 // ─── Prompt Queries ──────────────────────────────────────────────────────────
@@ -898,6 +1176,159 @@ export function createAdversarialScenario(db: Database.Database, s: {
     s.attackerModel, s.attackerMode, s.order, new Date().toISOString());
 }
 
+// ─── Coding Scenario Queries ────────────────────────────────────────────────
+
+export function getCodingScenarios(db: Database.Database, suiteId: string) {
+  return db.prepare("SELECT * FROM coding_scenarios WHERE suite_id = ? ORDER BY sort_order").all(suiteId) as {
+    id: string; suite_id: string; name: string; description: string;
+    language: string; function_signature: string; test_cases: string;
+    setup_code: string | null; difficulty: string; time_limit_ms: number;
+    sort_order: number; created_at: string;
+  }[];
+}
+
+export function createCodingScenario(db: Database.Database, s: {
+  id: string; suiteId: string; name: string; description: string;
+  language: string; functionSignature: string; testCases: unknown[];
+  setupCode?: string | null; difficulty: string; timeLimitMs: number; order: number;
+}) {
+  db.prepare(`
+    INSERT INTO coding_scenarios (id, suite_id, name, description, language, function_signature, test_cases, setup_code, difficulty, time_limit_ms, sort_order, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(s.id, s.suiteId, s.name, s.description, s.language, s.functionSignature,
+    JSON.stringify(s.testCases ?? []), s.setupCode ?? null,
+    s.difficulty, s.timeLimitMs, s.order, new Date().toISOString());
+}
+
+export function deleteCodingScenario(db: Database.Database, id: string) {
+  db.prepare("DELETE FROM coding_scenarios WHERE id = ?").run(id);
+}
+
+export function updateCodingScenario(db: Database.Database, id: string, data: Partial<{
+  name: string; description: string; language: string; functionSignature: string;
+  testCases: unknown[]; setupCode: string | null; difficulty: string; timeLimitMs: number; order: number;
+}>) {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (data.name !== undefined) { fields.push("name = ?"); values.push(data.name); }
+  if (data.description !== undefined) { fields.push("description = ?"); values.push(data.description); }
+  if (data.language !== undefined) { fields.push("language = ?"); values.push(data.language); }
+  if (data.functionSignature !== undefined) { fields.push("function_signature = ?"); values.push(data.functionSignature); }
+  if (data.testCases !== undefined) { fields.push("test_cases = ?"); values.push(JSON.stringify(data.testCases)); }
+  if (data.setupCode !== undefined) { fields.push("setup_code = ?"); values.push(data.setupCode); }
+  if (data.difficulty !== undefined) { fields.push("difficulty = ?"); values.push(data.difficulty); }
+  if (data.timeLimitMs !== undefined) { fields.push("time_limit_ms = ?"); values.push(data.timeLimitMs); }
+  if (data.order !== undefined) { fields.push("sort_order = ?"); values.push(data.order); }
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE coding_scenarios SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+}
+
+// ─── Vision Scenario Queries ────────────────────────────────────────────────
+
+export function getVisionScenarios(db: Database.Database, suiteId: string) {
+  return db.prepare("SELECT * FROM vision_scenarios WHERE suite_id = ? ORDER BY sort_order").all(suiteId) as {
+    id: string; suite_id: string; name: string; image_data: string; image_mime: string;
+    question: string; category: string; expected_answer: string | null; rubric: string;
+    difficulty: string; sort_order: number; created_at: string;
+  }[];
+}
+
+export function createVisionScenario(db: Database.Database, s: {
+  id: string; suiteId: string; name: string; imageData: string; imageMime: string;
+  question: string; category: string; expectedAnswer?: string | null; rubric?: string;
+  difficulty: string; order: number;
+}) {
+  db.prepare(`
+    INSERT INTO vision_scenarios (id, suite_id, name, image_data, image_mime, question, category, expected_answer, rubric, difficulty, sort_order, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(s.id, s.suiteId, s.name, s.imageData, s.imageMime, s.question, s.category,
+    s.expectedAnswer ?? null, s.rubric ?? "", s.difficulty, s.order, new Date().toISOString());
+}
+
+export function updateVisionScenario(db: Database.Database, id: string, data: Partial<{
+  name: string; imageData: string; imageMime: string; question: string;
+  category: string; expectedAnswer: string | null; rubric: string; difficulty: string; order: number;
+}>) {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (data.name !== undefined) { fields.push("name = ?"); values.push(data.name); }
+  if (data.imageData !== undefined) { fields.push("image_data = ?"); values.push(data.imageData); }
+  if (data.imageMime !== undefined) { fields.push("image_mime = ?"); values.push(data.imageMime); }
+  if (data.question !== undefined) { fields.push("question = ?"); values.push(data.question); }
+  if (data.category !== undefined) { fields.push("category = ?"); values.push(data.category); }
+  if (data.expectedAnswer !== undefined) { fields.push("expected_answer = ?"); values.push(data.expectedAnswer); }
+  if (data.rubric !== undefined) { fields.push("rubric = ?"); values.push(data.rubric); }
+  if (data.difficulty !== undefined) { fields.push("difficulty = ?"); values.push(data.difficulty); }
+  if (data.order !== undefined) { fields.push("sort_order = ?"); values.push(data.order); }
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE vision_scenarios SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+}
+
+export function deleteVisionScenario(db: Database.Database, id: string) {
+  db.prepare("DELETE FROM vision_scenarios WHERE id = ?").run(id);
+}
+
+// ─── RAG Scenario Queries ───────────────────────────────────────────────────
+
+export function getRagDocuments(db: Database.Database, suiteId: string) {
+  return db.prepare("SELECT * FROM rag_documents WHERE suite_id = ? ORDER BY created_at DESC").all(suiteId) as {
+    id: string; suite_id: string; filename: string; mime_type: string; content: string; created_at: string;
+  }[];
+}
+
+export function getRagChunks(db: Database.Database, documentId: string) {
+  return db.prepare("SELECT * FROM rag_chunks WHERE document_id = ? ORDER BY sort_order").all(documentId) as {
+    id: string; document_id: string; text: string; source: string; token_count: number; sort_order: number;
+  }[];
+}
+
+export function getRagScenarios(db: Database.Database, suiteId: string) {
+  return db.prepare("SELECT * FROM rag_scenarios WHERE suite_id = ? ORDER BY sort_order").all(suiteId) as {
+    id: string; suite_id: string; document_id: string; question: string; ground_truth_answer: string;
+    relevant_chunk_ids: string; distractor_chunk_ids: string; answer_not_in_document: number;
+    difficulty: string; sort_order: number; created_at: string;
+  }[];
+}
+
+export function createRagScenario(db: Database.Database, s: {
+  id: string; suiteId: string; documentId: string; question: string; groundTruthAnswer: string;
+  relevantChunkIds: string[]; distractorChunkIds: string[]; answerNotInDocument: boolean;
+  difficulty: string; order: number;
+}) {
+  db.prepare(`
+    INSERT INTO rag_scenarios (id, suite_id, document_id, question, ground_truth_answer, relevant_chunk_ids, distractor_chunk_ids, answer_not_in_document, difficulty, sort_order, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(s.id, s.suiteId, s.documentId, s.question, s.groundTruthAnswer,
+    JSON.stringify(s.relevantChunkIds), JSON.stringify(s.distractorChunkIds),
+    s.answerNotInDocument ? 1 : 0, s.difficulty, s.order, new Date().toISOString());
+}
+
+export function updateRagScenario(db: Database.Database, id: string, data: Partial<{
+  question: string; groundTruthAnswer: string; relevantChunkIds: string[];
+  distractorChunkIds: string[]; answerNotInDocument: boolean; difficulty: string; order: number;
+}>) {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (data.question !== undefined) { fields.push("question = ?"); values.push(data.question); }
+  if (data.groundTruthAnswer !== undefined) { fields.push("ground_truth_answer = ?"); values.push(data.groundTruthAnswer); }
+  if (data.relevantChunkIds !== undefined) { fields.push("relevant_chunk_ids = ?"); values.push(JSON.stringify(data.relevantChunkIds)); }
+  if (data.distractorChunkIds !== undefined) { fields.push("distractor_chunk_ids = ?"); values.push(JSON.stringify(data.distractorChunkIds)); }
+  if (data.answerNotInDocument !== undefined) { fields.push("answer_not_in_document = ?"); values.push(data.answerNotInDocument ? 1 : 0); }
+  if (data.difficulty !== undefined) { fields.push("difficulty = ?"); values.push(data.difficulty); }
+  if (data.order !== undefined) { fields.push("sort_order = ?"); values.push(data.order); }
+  if (fields.length === 0) return;
+  values.push(id);
+  db.prepare(`UPDATE rag_scenarios SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+}
+
+export function deleteRagScenario(db: Database.Database, id: string) {
+  db.prepare("DELETE FROM rag_scenarios WHERE id = ?").run(id);
+}
+
+// ─── Adversarial Updates ────────────────────────────────────────────────────
+
 export function updateAdversarialScenario(db: Database.Database, id: string, data: Partial<{
   name: string; systemPrompt: string; attackStrategy: string;
   customAttackPersona: string | null; maxTurns: number; attackIntensity: number;
@@ -1046,6 +1477,77 @@ export function updateManualVote(db: Database.Database, promptResultId: string, 
   db.prepare("UPDATE prompt_results SET manual_vote = ? WHERE id = ?").run(vote, promptResultId);
 }
 
+/**
+ * Re-aggregate a model's overall score for a given run, taking human votes into
+ * account via computeCompositeScore. Called after a vote changes.
+ *
+ * Reads all prompt results for (run_id, model_name), blends gate/judge/vote
+ * into per-prompt composites, then averages. Kept inline (not in scoring.ts)
+ * because it needs DB access and scoring.ts stays pure.
+ *
+ * Synthetic rows (conversation/adversarial-mode placeholders) are skipped
+ * because those modes' overall_score is a mode-specific score (robustness,
+ * quality decay, etc.) that shouldn't be clobbered by a generic vote average.
+ */
+export function recomputeModelOverallWithVotes(db: Database.Database, runId: string, modelResultId: string): void {
+  const rows = db.prepare(`
+    SELECT pr.id, pr.auto_scores, pr.judge_scores, pr.manual_vote
+    FROM prompt_results pr
+    WHERE pr.run_id = ? AND pr.model_result_id = ?
+  `).all(runId, modelResultId) as Array<{ id: string; auto_scores: string; judge_scores: string | null; manual_vote: string | null }>;
+
+  if (rows.length === 0) return;
+
+  let sum = 0;
+  let count = 0;
+  for (const row of rows) {
+    let auto: { rubricScore?: number; gatePass?: boolean; gateFlag?: string | null; synthetic?: string } = {};
+    try { auto = JSON.parse(row.auto_scores); } catch { /* treat as empty */ }
+
+    // Synthetic rows belong to conversation/adversarial runs whose overall
+    // score is set by mode-specific engines; don't include them in the
+    // vote-weighted average.
+    if (auto.synthetic) continue;
+
+    let judge: { score?: number } | null = null;
+    if (row.judge_scores) {
+      try { judge = JSON.parse(row.judge_scores); } catch { judge = null; }
+    }
+
+    const gateScore = typeof auto.rubricScore === "number" ? auto.rubricScore : 0;
+    const gatePass = auto.gatePass !== false; // default true if unset
+    const judgeScore = typeof judge?.score === "number" ? judge.score : undefined;
+    const vote = row.manual_vote === "better" || row.manual_vote === "worse" ? row.manual_vote : null;
+
+    // Inline the composite math to avoid importing scoring.ts into db.ts.
+    let composite: number;
+    if (!gatePass) composite = 0;
+    else {
+      const base = judgeScore !== undefined && judgeScore > 0
+        ? Math.max(0, Math.min(100, judgeScore))
+        : gateScore;
+      if (vote === "better") composite = Math.min(100, base + 5);
+      else if (vote === "worse") composite = Math.max(0, base - 5);
+      else composite = base;
+    }
+    sum += composite;
+    count++;
+  }
+
+  // If there were no non-synthetic rows, don't touch overall_score — it's
+  // owned by the conversation/adversarial engines.
+  if (count === 0) return;
+
+  const overall = Math.round(sum / count);
+  db.prepare("UPDATE model_results SET overall_score = ? WHERE id = ?").run(overall, modelResultId);
+}
+
+/** Find the model_result_id that owns a given prompt_result. */
+export function getModelResultIdForPrompt(db: Database.Database, promptResultId: string): { runId: string; modelResultId: string } | null {
+  const row = db.prepare("SELECT run_id, model_result_id FROM prompt_results WHERE id = ?").get(promptResultId) as { run_id: string; model_result_id: string } | undefined;
+  return row ? { runId: row.run_id, modelResultId: row.model_result_id } : null;
+}
+
 export function updatePromptJudgeScores(db: Database.Database, promptResultId: string, judgeScores: object) {
   db.prepare("UPDATE prompt_results SET judge_scores = ? WHERE id = ?")
     .run(JSON.stringify(judgeScores), promptResultId);
@@ -1071,71 +1573,11 @@ export function setPreference(db: Database.Database, key: string, value: unknown
   db.prepare("INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)").run(key, JSON.stringify(value));
 }
 
-// ─── API Keys ─────────────────────────────────────────────────────────────────
-
-export interface ApiKeyRow {
-  id: string;
-  provider: string;
-  encrypted_key: string;
-  base_url: string | null;
-  model_id: string | null;
-  label: string | null;
-  use_for_judging: number;
-  use_for_baseline: number;
-  spend_limit_usd: number;
-  spend_used_usd: number;
-  spend_month: string;
-  status: string;
-  created_at: string;
-}
-
-export function getApiKeys(db: Database.Database): ApiKeyRow[] {
-  return db.prepare("SELECT * FROM api_keys ORDER BY created_at ASC").all() as ApiKeyRow[];
-}
-
-export function upsertApiKey(db: Database.Database, key: {
-  id: string; provider: string; encryptedKey: string;
-  baseUrl?: string | null; modelId?: string | null; label?: string | null;
-  useForJudging: boolean; useForBaseline: boolean;
-  spendLimitUsd: number;
-}) {
-  db.prepare(`
-    INSERT INTO api_keys (id, provider, encrypted_key, base_url, model_id, label, use_for_judging, use_for_baseline, spend_limit_usd, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(provider) DO UPDATE SET
-      encrypted_key = excluded.encrypted_key,
-      base_url = excluded.base_url,
-      model_id = excluded.model_id,
-      label = excluded.label,
-      use_for_judging = excluded.use_for_judging,
-      use_for_baseline = excluded.use_for_baseline,
-      spend_limit_usd = excluded.spend_limit_usd
-  `).run(
-    key.id, key.provider, key.encryptedKey,
-    key.baseUrl ?? null, key.modelId ?? null, key.label ?? null,
-    key.useForJudging ? 1 : 0, key.useForBaseline ? 1 : 0,
-    key.spendLimitUsd, new Date().toISOString()
-  );
-}
-
-export function updateApiKeyStatus(db: Database.Database, provider: string, status: string) {
-  db.prepare("UPDATE api_keys SET status = ? WHERE provider = ?").run(status, provider);
-}
-
-export function deleteApiKey(db: Database.Database, provider: string) {
-  db.prepare("DELETE FROM api_keys WHERE provider = ?").run(provider);
-}
-
-export function addApiKeySpend(db: Database.Database, provider: string, usd: number) {
-  const month = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-  // Reset spend if new month
-  db.prepare(`
-    UPDATE api_keys
-    SET spend_used_usd = CASE WHEN spend_month = ? THEN spend_used_usd + ? ELSE ? END,
-        spend_month = ?
-    WHERE provider = ?
-  `).run(month, usd, usd, month, provider);
-}
+// The legacy `api_keys` table (and its getApiKeys / upsertApiKey / addApiKeySpend
+// helpers) was replaced by `cloud_providers` with proper AES-256-GCM encryption
+// and spend tracking. The table row still exists in initSchema for backwards
+// compatibility with existing DBs but no code reads it anymore. See
+// migrateCloudProviderSpendColumns / incrementCloudSpend below.
 
 // ─── Cloud Providers ─────────────────────────────────────────────────────────
 
@@ -1148,16 +1590,32 @@ export interface CloudProviderRow {
   selected_model: string | null;
   use_for_judging: number;
   use_for_playground: number;
+  spend_limit_usd: number;
+  spend_used_usd: number;
+  spend_month: string;
   created_at: string;
   updated_at: string;
 }
 
 export function getCloudProviders(db: Database.Database): CloudProviderRow[] {
-  return db.prepare("SELECT * FROM cloud_providers ORDER BY created_at ASC").all() as CloudProviderRow[];
+  const rows = db.prepare("SELECT * FROM cloud_providers ORDER BY created_at ASC").all() as CloudProviderRow[];
+  return rows.map((r) => ({ ...r, api_key: safeDecrypt(r.api_key) }));
 }
 
 export function getCloudProviderById(db: Database.Database, id: string): CloudProviderRow | undefined {
-  return db.prepare("SELECT * FROM cloud_providers WHERE id = ?").get(id) as CloudProviderRow | undefined;
+  const row = db.prepare("SELECT * FROM cloud_providers WHERE id = ?").get(id) as CloudProviderRow | undefined;
+  if (!row) return undefined;
+  return { ...row, api_key: safeDecrypt(row.api_key) };
+}
+
+/**
+ * Get the raw (still-encrypted) api_key for a provider. Used only by the
+ * migration helper so we can detect plaintext rows — callers doing real work
+ * should use getCloudProviderById and receive the decrypted key.
+ */
+function getRawApiKey(db: Database.Database, id: string): string | null {
+  const row = db.prepare("SELECT api_key FROM cloud_providers WHERE id = ?").get(id) as { api_key: string } | undefined;
+  return row?.api_key ?? null;
 }
 
 export function createCloudProvider(db: Database.Database, p: {
@@ -1180,7 +1638,10 @@ export function updateCloudProvider(db: Database.Database, id: string, data: {
   const fields: string[] = [];
   const values: unknown[] = [];
   if (data.label !== undefined) { fields.push("label = ?"); values.push(data.label); }
-  if (data.apiKey !== undefined) { fields.push("api_key = ?"); values.push(data.apiKey); }
+  if (data.apiKey !== undefined) {
+    fields.push("api_key = ?");
+    values.push(data.apiKey);
+  }
   if (data.baseUrl !== undefined) { fields.push("base_url = ?"); values.push(data.baseUrl); }
   if (data.selectedModel !== undefined) { fields.push("selected_model = ?"); values.push(data.selectedModel); }
   if (data.useForJudging !== undefined) { fields.push("use_for_judging = ?"); values.push(data.useForJudging ? 1 : 0); }
@@ -1191,6 +1652,88 @@ export function updateCloudProvider(db: Database.Database, id: string, data: {
   values.push(id);
   db.prepare(`UPDATE cloud_providers SET ${fields.join(", ")} WHERE id = ?`).run(...values);
 }
+
+/**
+ * One-time migration: decrypt any encrypted api_key values back to plaintext.
+ */
+function migrateCloudProviderKeys(db: Database.Database) {
+  const rows = db.prepare("SELECT id, api_key FROM cloud_providers").all() as Array<{ id: string; api_key: string }>;
+  const needsMigration = rows.filter((r) => isLikelyEncrypted(r.api_key));
+  if (needsMigration.length === 0) return;
+  // Try to decrypt, if fails just clear the key (user will re-enter)
+  for (const r of needsMigration) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { decryptApiKey } = require("./crypto");
+      const plain = decryptApiKey(r.api_key);
+      db.prepare("UPDATE cloud_providers SET api_key = ? WHERE id = ?").run(plain, r.id);
+    } catch {
+      // Can't decrypt — clear it so user re-enters
+      db.prepare("UPDATE cloud_providers SET api_key = '', status = 'not_set' WHERE id = ?").run(r.id);
+    }
+  }
+}
+
+/** Add spend-tracking columns to cloud_providers if they don't already exist. */
+function migrateCloudProviderSpendColumns(db: Database.Database) {
+  const cols = db.prepare("PRAGMA table_info(cloud_providers)").all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has("spend_limit_usd")) {
+    db.exec("ALTER TABLE cloud_providers ADD COLUMN spend_limit_usd REAL NOT NULL DEFAULT 5.0");
+  }
+  if (!names.has("spend_used_usd")) {
+    db.exec("ALTER TABLE cloud_providers ADD COLUMN spend_used_usd REAL NOT NULL DEFAULT 0.0");
+  }
+  if (!names.has("spend_month")) {
+    db.exec("ALTER TABLE cloud_providers ADD COLUMN spend_month TEXT NOT NULL DEFAULT ''");
+  }
+}
+
+function currentYyyyMm(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Returns whether another cloud call is allowed for this provider this month,
+ * plus the remaining budget in USD. Resets the counter transparently if the
+ * month has rolled over.
+ */
+export function checkCloudSpendAllowed(db: Database.Database, providerId: string): { allowed: boolean; remaining: number; limit: number; used: number } {
+  const row = db.prepare(
+    "SELECT spend_limit_usd, spend_used_usd, spend_month FROM cloud_providers WHERE id = ?"
+  ).get(providerId) as { spend_limit_usd: number; spend_used_usd: number; spend_month: string } | undefined;
+  if (!row) return { allowed: false, remaining: 0, limit: 0, used: 0 };
+  const month = currentYyyyMm();
+  const used = row.spend_month === month ? row.spend_used_usd : 0;
+  const remaining = Math.max(0, row.spend_limit_usd - used);
+  return { allowed: used < row.spend_limit_usd, remaining, limit: row.spend_limit_usd, used };
+}
+
+/**
+ * Record a cloud API call's cost. Resets the monthly counter if we've rolled
+ * into a new month. Safe to call concurrently — `better-sqlite3` is synchronous.
+ */
+export function incrementCloudSpend(db: Database.Database, providerId: string, costUsd: number): void {
+  if (!Number.isFinite(costUsd) || costUsd <= 0) return;
+  const month = currentYyyyMm();
+  const row = db.prepare("SELECT spend_used_usd, spend_month FROM cloud_providers WHERE id = ?").get(providerId) as { spend_used_usd: number; spend_month: string } | undefined;
+  if (!row) return;
+  const currentUsed = row.spend_month === month ? row.spend_used_usd : 0;
+  const newUsed = currentUsed + costUsd;
+  db.prepare("UPDATE cloud_providers SET spend_used_usd = ?, spend_month = ?, updated_at = ? WHERE id = ?")
+    .run(newUsed, month, new Date().toISOString(), providerId);
+}
+
+/** Admin: set or update the monthly spend limit for a provider. */
+export function setCloudSpendLimit(db: Database.Database, providerId: string, limitUsd: number): void {
+  if (!Number.isFinite(limitUsd) || limitUsd < 0) return;
+  db.prepare("UPDATE cloud_providers SET spend_limit_usd = ?, updated_at = ? WHERE id = ?")
+    .run(limitUsd, new Date().toISOString(), providerId);
+}
+
+// Suppress unused warning for getRawApiKey — it's kept for future admin tooling.
+void getRawApiKey;
 
 export function deleteCloudProvider(db: Database.Database, id: string) {
   db.prepare("DELETE FROM cloud_providers WHERE id = ?").run(id);
@@ -1262,6 +1805,50 @@ export function saveEloMatch(db: Database.Database, data: {
 
 export function getEloMatchesForRun(db: Database.Database, runId: string) {
   return db.prepare("SELECT * FROM elo_matches WHERE run_id = ? ORDER BY created_at").all(runId);
+}
+
+// ─── Peer Votes ──────────────────────────────────────────────────────────────
+
+export function savePeerVotes(
+  db: Database.Database,
+  runId: string,
+  promptId: string,
+  modelA: string,
+  modelB: string,
+  votes: Array<{ judge: string; winner: "A" | "B"; reason?: string }>
+) {
+  // Ensure reason column exists (migration for existing DBs)
+  try { db.prepare("ALTER TABLE peer_votes ADD COLUMN reason TEXT").run(); } catch { /* already exists */ }
+
+  const now = new Date().toISOString();
+  const stmt = db.prepare(
+    "INSERT INTO peer_votes (run_id, prompt_id, model_a, model_b, judge, vote, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  );
+  for (const v of votes) {
+    stmt.run(runId, promptId, modelA, modelB, v.judge, v.winner, v.reason || null, now);
+  }
+}
+
+export function getPeerVotesForRun(db: Database.Database, runId: string) {
+  return db.prepare("SELECT * FROM peer_votes WHERE run_id = ? ORDER BY created_at").all(runId) as Array<{
+    id: number; run_id: string; prompt_id: string;
+    model_a: string; model_b: string; judge: string; vote: string; reason: string | null;
+  }>;
+}
+
+export function getJudgeEvaluationsForRun(db: Database.Database, runId: string) {
+  return db.prepare(`
+    SELECT je.*, pr.model_name, pr.prompt_id
+    FROM judge_evaluations je
+    JOIN prompt_results pr ON pr.id = je.prompt_result_id
+    WHERE pr.run_id = ?
+    ORDER BY je.id
+  `).all(runId) as Array<{
+    prompt_result_id: string; judge_model: string; model_name: string; prompt_id: string;
+    accuracy: number; helpfulness: number; clarity: number; instruction_following: number;
+    strengths: string | null; weaknesses: string | null;
+    is_winner: number; winner_reasoning: string | null; judge_score: number;
+  }>;
 }
 
 export function getDimensionScoresForPromptResult(db: Database.Database, promptResultId: string) {

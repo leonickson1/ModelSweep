@@ -257,37 +257,37 @@ export default function PlaygroundPage() {
   ];
 
   return (
-    <div className="p-8 h-screen flex flex-col max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">Playground</h1>
-        <p className="text-zinc-500 text-sm mt-1">Quick single-prompt testing</p>
+    <div className="px-6 md:px-12 py-12 h-screen flex flex-col max-w-[1500px] mx-auto text-white">
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
+        <h1 className="text-4xl font-semibold tracking-tight mb-2">Playground</h1>
+        <p className="text-zinc-400 text-[17px] font-medium mt-1">Quick single-prompt testing</p>
       </motion.div>
 
-      <div className="flex-1 flex gap-6 min-h-0">
+      <div className="flex-1 flex gap-8 min-h-0">
         {/* Left: Controls */}
-        <div className="w-[400px] flex-shrink-0 flex flex-col gap-4 overflow-y-auto">
+        <div className="w-[450px] flex-shrink-0 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
           {/* Prompt input */}
-          <GlowCard className="p-4 flex flex-col" animate={false}>
-            <label className="text-zinc-500 text-xs font-medium uppercase tracking-wider block mb-3">
+          <div className="apple-glass rounded-[24px] p-6 flex flex-col">
+            <label className="text-zinc-400 text-[12px] font-bold uppercase tracking-wider block mb-4">
               Prompt
             </label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Enter your prompt here..."
-              className="bg-transparent text-zinc-200 text-sm outline-none resize-none placeholder:text-zinc-600 min-h-[160px]"
+              className="w-full bg-transparent text-white text-[16px] outline-none resize-none placeholder:text-zinc-600 min-h-[180px] leading-relaxed"
             />
-          </GlowCard>
+          </div>
 
           {/* Model selection */}
-          <GlowCard className="p-4" animate={false}>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="apple-glass rounded-[24px] p-6">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-zinc-500 text-xs font-medium block mb-2">Primary Model</label>
+                <label className="text-zinc-400 text-[13px] font-semibold block mb-3">Primary Model</label>
                 <select
                   value={selectedModel}
                   onChange={(e) => setModel(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-300 text-sm appearance-none outline-none focus:border-white/20"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-[15px] font-medium appearance-none outline-none focus:border-zinc-500 transition-colors"
                 >
                   {models.length > 0 && (
                     <optgroup label="LOCAL MODELS">
@@ -307,11 +307,11 @@ export default function PlaygroundPage() {
                 </select>
               </div>
               <div>
-                <label className="text-zinc-500 text-xs font-medium block mb-2">Compare With</label>
+                <label className="text-zinc-400 text-[13px] font-semibold block mb-3">Compare With</label>
                 <select
                   value={compareModel}
                   onChange={(e) => setCompareModel(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-zinc-300 text-sm appearance-none outline-none focus:border-white/20"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-[15px] font-medium appearance-none outline-none focus:border-zinc-500 transition-colors"
                 >
                   <option value="">None</option>
                   {models.length > 0 && (
@@ -336,22 +336,22 @@ export default function PlaygroundPage() {
                 </select>
               </div>
             </div>
-          </GlowCard>
+          </div>
 
           {/* Parameter 2D map */}
-          <GlowCard className="p-4" animate={false}>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
+          <div className="apple-glass rounded-[24px] p-6">
+            <div className="flex items-center justify-between mb-5">
+              <label className="text-zinc-400 text-[12px] font-bold uppercase tracking-wider">
                 Parameters
               </label>
-              <div className="flex items-center gap-3 text-xs text-zinc-500">
-                <span className="flex items-center gap-1">Temp: <span className="text-zinc-300 font-mono">{temperature.toFixed(2)}</span> <InfoTooltip text="Controls randomness. Lower values produce more focused output, higher values increase creativity and variation." /></span>
-                <span className="flex items-center gap-1">Top-P: <span className="text-zinc-300 font-mono">{topP.toFixed(2)}</span> <InfoTooltip text="Nucleus sampling threshold. Lower values restrict output to more probable tokens, higher values allow more diversity." /></span>
+              <div className="flex items-center gap-4 text-[13px] text-zinc-500 font-medium font-mono">
+                <span className="flex items-center gap-1.5">Temp: <span className="text-white font-mono">{temperature.toFixed(2)}</span> <InfoTooltip text="Controls randomness. Lower values produce more focused output, higher values increase creativity and variation." /></span>
+                <span className="flex items-center gap-1.5">Top-P: <span className="text-white font-mono">{topP.toFixed(2)}</span> <InfoTooltip text="Nucleus sampling threshold. Lower values restrict output to more probable tokens, higher values allow more diversity." /></span>
               </div>
             </div>
 
             <div
-              className="relative w-full h-28 mb-4 bg-white/[0.03] rounded-xl border border-white/[0.05] cursor-crosshair overflow-hidden"
+              className="relative w-full h-[140px] mb-6 bg-black/40 rounded-xl border border-white/10 cursor-crosshair overflow-hidden"
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = (e.clientX - rect.left) / rect.width;
@@ -360,55 +360,54 @@ export default function PlaygroundPage() {
                 setTopP(parseFloat((1 - y).toFixed(2)));
               }}
             >
-              <span className="absolute bottom-1 left-2 text-zinc-700 text-xs">Precise</span>
-              <span className="absolute bottom-1 right-2 text-zinc-700 text-xs">Creative</span>
-              <span className="absolute top-1 left-2 text-zinc-700 text-xs">Focused</span>
-              <span className="absolute top-1 right-2 text-zinc-700 text-xs">Wild</span>
+              <span className="absolute bottom-2 left-3 text-zinc-600 text-[13px] font-medium tracking-tight">Precise</span>
+              <span className="absolute bottom-2 right-3 text-zinc-600 text-[13px] font-medium tracking-tight">Creative</span>
+              <span className="absolute top-2 left-3 text-zinc-600 text-[13px] font-medium tracking-tight">Focused</span>
+              <span className="absolute top-2 right-3 text-zinc-600 text-[13px] font-medium tracking-tight">Wild</span>
               <div
-                className="absolute w-3 h-3 rounded-full bg-blue-400 border-2 border-blue-300 shadow-lg -translate-x-1/2 -translate-y-1/2 transition-all"
+                className="absolute w-4 h-4 rounded-full bg-blue-500 border-2 border-blue-300 shadow-lg -translate-x-1/2 -translate-y-1/2 transition-all cursor-grab active:cursor-grabbing"
                 style={{ left: `${mapX}%`, top: `${mapY}%` }}
               />
             </div>
 
             <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-zinc-600 flex items-center gap-1">Max Tokens <InfoTooltip text="Maximum number of tokens the model will generate in its response. Higher values allow longer outputs." /></span>
-                <span className="text-zinc-400 font-mono">{maxTokens}</span>
+              <div className="flex justify-between text-[13px] mb-3 font-medium">
+                <span className="text-zinc-400 flex items-center gap-1.5">Max Tokens <InfoTooltip text="Maximum number of tokens the model will generate in its response. Higher values allow longer outputs." /></span>
+                <span className="text-white font-mono font-bold tracking-wider">{maxTokens}</span>
               </div>
               <input
                 type="range" min={128} max={4096} step={128}
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                className="w-full h-1.5 bg-black/50 rounded-full appearance-none cursor-pointer border border-white/10"
               />
             </div>
-          </GlowCard>
+          </div>
 
           {/* Run button */}
-          <div className="flex gap-2">
+          <div className="flex gap-3 pb-8">
             {running ? (
-              <Button variant="danger" className="flex-1" onClick={stop}>
-                <Square size={14} />
+              <button className="flex-1 h-12 rounded-full font-semibold px-6 bg-red-500/10 text-red-400 flex items-center justify-center gap-2 hover:bg-red-500/20 transition-all active:scale-[0.98]" onClick={stop}>
+                <Square size={16} />
                 Stop
-              </Button>
+              </button>
             ) : (
-              <Button
-                variant="primary"
-                className="flex-1"
+              <button
+                className="flex-1 h-12 rounded-full font-semibold px-6 bg-white text-black flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-transform disabled:opacity-50 disabled:pointer-events-none shadow-sm"
                 disabled={!prompt.trim() || !selectedModel}
                 onClick={run}
               >
-                <Play size={14} />
+                <Play size={16} className="fill-current" />
                 Run {modelsToRun.length > 1 ? `(${modelsToRun.length} models)` : ""}
-              </Button>
+              </button>
             )}
           </div>
         </div>
 
         {/* Right: Output */}
-        <div className="flex-1 flex flex-col gap-3 overflow-y-auto min-h-0">
+        <div className="flex-1 flex flex-col gap-5 overflow-y-auto min-h-0 pr-4 custom-scrollbar">
           {modelsToRun.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">
+            <div className="flex-1 flex items-center justify-center text-zinc-500 text-[16px] font-medium">
               Select a model to get started
             </div>
           ) : (
@@ -423,40 +422,40 @@ export default function PlaygroundPage() {
               return (
                 <div
                   key={m}
-                  className="bg-white/5 border border-white/[0.06] rounded-2xl overflow-hidden"
-                  style={isExpanded && result?.text ? { boxShadow: `0 0 30px ${color.hex}10` } : {}}
+                  className="apple-glass rounded-[28px] overflow-hidden transition-all duration-300"
+                  style={isExpanded && result?.text ? { boxShadow: `0 0 40px ${color.hex}15` } : {}}
                 >
                   {/* Header */}
                   <button
                     onClick={() => toggleExpand(m)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors text-left"
+                    className="w-full flex items-center gap-4 px-6 py-5 hover:bg-white/[0.04] transition-colors text-left"
                   >
                     {cloud ? (
-                      <Cloud size={14} className="text-violet-400 flex-shrink-0" />
+                      <Cloud size={20} className="text-violet-400 flex-shrink-0" />
                     ) : (
-                      <ModelColorDot name={m} />
+                      <div className="w-2 h-2 rounded-full shadow-sm" style={{ background: color.hex }} />
                     )}
-                    <span className="text-zinc-300 text-sm font-medium flex-1 truncate">{displayName}</span>
+                    <span className="text-white text-[17px] font-semibold flex-1 truncate tracking-tight">{displayName}</span>
                     {isStreaming && (
-                      <span className="text-blue-400 text-xs animate-pulse">Streaming...</span>
+                      <span className="text-blue-400 text-[13px] font-medium animate-pulse tracking-tight">Streaming...</span>
                     )}
                     {result?.done && (
-                      <div className="flex items-center gap-3 text-xs text-zinc-500">
-                        <span className="flex items-center gap-1">
-                          <Zap size={10} />
+                      <div className="flex items-center gap-4 text-[13px] text-zinc-400 font-mono font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <Zap size={14} />
                           {result.tokensPerSec.toFixed(1)} t/s
                         </span>
-                        <span>{result.totalTokens} tokens</span>
+                        <span>{result.totalTokens} tok</span>
                       </div>
                     )}
                     {!result && !running && (
-                      <span className="text-zinc-600 text-xs">No output yet</span>
+                      <span className="text-zinc-600 text-[14px]">No output yet</span>
                     )}
                     <ChevronDown
-                      size={14}
+                      size={18}
                       className={cn(
-                        "text-zinc-600 transition-transform flex-shrink-0",
-                        isExpanded && "rotate-180"
+                         "text-zinc-500 transition-transform flex-shrink-0 ml-2",
+                         isExpanded && "rotate-180"
                       )}
                     />
                   </button>
@@ -471,19 +470,21 @@ export default function PlaygroundPage() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="border-t border-white/[0.05] px-4 py-3 max-h-96 overflow-y-auto">
+                        <div className="border-t border-white/5 px-6 py-5 max-h-[600px] overflow-y-auto custom-scrollbar text-zinc-300">
                           {cloud && result?.done && (
-                            <p className="text-zinc-600 text-xs mb-2 flex items-center gap-1.5">
-                              <Cloud size={10} />
+                            <p className="text-zinc-500 text-[13px] font-medium mb-3 flex items-center gap-2">
+                              <Cloud size={14} />
                               Cloud model — speed includes network latency
                             </p>
                           )}
                           {result?.text ? (
-                            <MarkdownContent content={result.text} />
+                            <div className="text-[16px] leading-relaxed">
+                               <MarkdownContent content={result.text} />
+                            </div>
                           ) : (
-                            <p className="text-zinc-600 text-sm text-center py-4">
+                            <p className="text-zinc-500 text-[15px] font-medium text-center py-8">
                               {running ? (
-                                <span className="animate-pulse">Waiting for response...</span>
+                                <span className="animate-pulse tracking-tight text-white/70">Generating response...</span>
                               ) : (
                                 "Run a prompt to see output here"
                               )}

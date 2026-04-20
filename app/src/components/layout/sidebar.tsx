@@ -9,7 +9,6 @@ import {
   Cpu,
   Beaker,
   Settings,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useConnectionStore } from "@/store/connection-store";
@@ -30,41 +29,31 @@ export function Sidebar() {
   const pathname = usePathname();
   const { status } = useConnectionStore();
 
-  const statusColor = {
-    connected: "bg-[#00FF66] shadow-[0_0_8px_#00FF66]",
-    connecting: "bg-yellow-500 animate-pulse",
-    disconnected: "bg-red-500",
-  }[status];
-
   return (
-    <aside className="w-[220px] flex-shrink-0 flex flex-col border-r border-zinc-800/40 bg-[#000000]">
+    <aside className="w-[260px] flex-shrink-0 flex flex-col border-r border-white/5 bg-[#080808]">
       {/* Logo */}
-      <div className="p-5 pb-4 border-b border-zinc-800/40">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-none border border-[#00FF66]/30 bg-[#00FF66]/5 flex items-center justify-center">
-            <Zap size={14} className="text-[#00FF66]" />
-          </div>
-          <span className="text-white font-mono font-bold uppercase tracking-widest text-xs">Pilot.SYS</span>
-        </div>
-
-        {/* Connection status */}
-        <div className="flex items-center gap-2 mt-4">
-          <div className={cn("w-1.5 h-1.5 rounded-full", statusColor)} />
-          <span className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">
-            {status === "connected" ? "Ollama Online" : status === "connecting" ? "Connecting..." : "Ollama Offline"}
+      <div className="px-6 pt-8 pb-8">
+        <span className="text-white text-[20px] font-semibold tracking-tight">ModelSweep</span>
+        <div className="flex items-center gap-2 mt-2">
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            status === "connected" ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]" : status === "connecting" ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]" : "bg-red-400"
+          )} />
+          <span className="text-zinc-500 font-medium text-[13px]">
+            {status === "connected" ? "Online" : status === "connecting" ? "Connecting" : "Offline"}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 px-3 space-y-0.5">
         {NAV_ITEMS.map((item) => (
-          <NavItem key={item.href} {...item} active={pathname === item.href} />
+          <NavItem key={item.href} {...item} active={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))} />
         ))}
       </nav>
 
-      {/* Bottom items */}
-      <div className="p-3 space-y-0.5 border-t border-white/[0.06]">
+      {/* Bottom */}
+      <div className="px-3 pb-4">
         {BOTTOM_ITEMS.map((item) => (
           <NavItem key={item.href} {...item} active={pathname === item.href} />
         ))}
@@ -85,14 +74,13 @@ function NavItem({ href, icon: Icon, label, active }: NavItemProps) {
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 text-xs font-mono uppercase tracking-widest transition-all",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00FF66] border border-transparent",
+        "flex items-center gap-3 px-4 py-3 text-[15px] font-medium rounded-xl transition-all",
         active
-          ? "bg-[#00FF66]/10 text-[#00FF66] border-[#00FF66]/20"
-          : "text-zinc-500 hover:text-white hover:bg-zinc-900"
+          ? "text-white bg-white/10 shadow-sm"
+          : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
       )}
     >
-      <Icon size={14} />
+      <Icon size={18} strokeWidth={2} />
       <span>{label}</span>
     </Link>
   );
